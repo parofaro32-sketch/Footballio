@@ -1,6 +1,5 @@
 {
   "version": 2,
-  "framework": null,
   "routes": [
     { "src": "/", "dest": "/client/index.html" },
     { "src": "/(.*)", "dest": "/client/$1" }
