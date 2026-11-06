@@ -2,7 +2,8 @@ import io from 'socket.io-client';
 
 export class SocketClient {
   constructor(url) {
-    this.socket = io(url, { transports: ['websocket', 'polling'] });
+    const resolved = (typeof window !== 'undefined' && window.__SOCKET_URL__) || url || window.location.origin;
+    this.socket = io(resolved, { transports: ['websocket', 'polling'] });
     this.roomId = null;
     this.team = null;
     this.name = null;
