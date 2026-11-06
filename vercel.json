@@ -2,7 +2,7 @@
   "version": 2,
   "framework": null,
   "routes": [
-    { "src": "/socket.io/(.*)", "status": 404, "headers": { "Content-Type": "text/plain" }, "body": "Socket.io backend is hosted separately. Set VITE_SOCKET_URL." },
+    { "src": "/", "dest": "/client/index.html" },
     { "src": "/(.*)", "dest": "/client/$1" }
   ],
   "cleanUrls": true,

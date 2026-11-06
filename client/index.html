@@ -22,9 +22,11 @@
     <div class="row">
       <label>Platform <select id="inpPlatform"><option value="auto">Auto</option><option value="pc">PC</option><option value="mobile">Mobile</option></select></label>
     </div>
+    <div class="msg" id="srvMsg" style="font-size:12px;opacity:0.7;margin-top:8px;">Online multiplayer needs a Socket.io backend; Local works offline.</div>
     <div class="buttons">
       <button id="btnCreate">Create Room</button>
       <button id="btnJoin">Join Room</button>
+      <button id="btnLocal" class="secondary">Play Local (vs Bots)</button>
     </div>
     <input id="inpRoomId" placeholder="Room ID (join)">
     <div id="roomsList" class="list"></div>
