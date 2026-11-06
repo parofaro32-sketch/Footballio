@@ -44,18 +44,26 @@ function initWorld(settings) {
   netcode = new Netcode();
   hud = new HUD();
 
-  if (isMobile() && !controls) controls = new MobileControls(canvas);
-  else if (isPC() && !controls) { controls = new PCControls(); controls.enable(canvas); }
+  // Always ensure controls exist for local mode
+  if (!controls) {
+    if (isMobile()) controls = new MobileControls(canvas);
+    else { controls = new PCControls(); controls.enable(canvas); }
+  }
 }
 
 function startLocal() {
-  mode = 'local';
-  gameState = 'playing';
-  initWorld({ weather: 'clear', stadium: 'classic' });
-  localPlayer = world.addPlayer('you', 'home', 'You', -20, 0, true);
-  localMatch = new LocalMatch(world, controls);
-  localMatch.start();
-  showScreen('game');
+  try {
+    mode = 'local';
+    gameState = 'playing';
+    initWorld({ weather: 'clear', stadium: 'classic' });
+    localPlayer = world.addPlayer('you', 'home', 'You', -20, 0, true);
+    localMatch = new LocalMatch(world, controls);
+    localMatch.start();
+    showScreen('game');
+  } catch (e) {
+    console.error('startLocal failed:', e);
+    document.getElementById('msg').textContent = 'Local match failed to start: ' + (e.message || e);
+  }
 }
 
 function startOnline(settings) {
@@ -102,6 +110,7 @@ function sendInputLoop() {
   lastInputTime = now;
 
   if (mode === 'local') {
+    if (!localMatch) return;
     localMatch.update();
     world.update(0);
     world.render();

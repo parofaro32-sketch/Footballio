@@ -28,6 +28,8 @@ export class World {
     this.camera.position.set(0, 18, -40);
     this.camera.lookAt(0, 0, 0);
 
+    this.lastTime = performance.now();
+
     this.light = new THREE.DirectionalLight(0xffffff, 1.0);
     this.light.position.set(30, 60, 30);
     this.light.castShadow = !this.isMobile;
