@@ -1018,16 +1018,20 @@
       mode = 'local';
       gameState = 'playing';
       loading.show();
-      // small delay so loading screen is visible, then start
       setTimeout(function() {
-        initWorld({ weather: 'clear', stadium: 'classic' });
-        localMatch = new LocalMatch(world, controls);
-        localMatch.start();
-        loading.hide();
-        showScreen('game');
-        if (!isMobile) requestFullscreen();
-        var hint = document.getElementById('hudHint');
-        if (hint) hint.textContent = 'WASD Move  |  Space Shoot  |  Shift Sprint  |  E Tackle';
+        try {
+          initWorld({ weather: 'clear', stadium: 'classic' });
+          localMatch = new LocalMatch(world, controls);
+          localMatch.start();
+          showScreen('game');
+          if (!isMobile) requestFullscreen();
+          var hint = document.getElementById('hudHint');
+          if (hint) hint.textContent = 'WASD Move  |  Space Shoot  |  Shift Sprint  |  E Tackle';
+        } catch (e) {
+          setMsg('Local match failed: ' + (e && e.message ? e.message : String(e)));
+        } finally {
+          loading.hide();
+        }
       }, 600);
     } catch (e) {
       loading.hide();
@@ -1041,12 +1045,17 @@
       gameState = 'playing';
       loading.show();
       setTimeout(function() {
-        if (hud) hud.show();
-        loading.hide();
-        showScreen('game');
-        if (!isMobile) requestFullscreen();
-        var hint = document.getElementById('hudHint');
-        if (hint) hint.textContent = 'WASD Move  |  Space Shoot  |  Shift Sprint  |  E Tackle';
+        try {
+          if (hud) hud.show();
+          showScreen('game');
+          if (!isMobile) requestFullscreen();
+          var hint = document.getElementById('hudHint');
+          if (hint) hint.textContent = 'WASD Move  |  Space Shoot  |  Shift Sprint  |  E Tackle';
+        } catch (e) {
+          setMsg('Online start failed: ' + (e && e.message ? e.message : String(e)));
+        } finally {
+          loading.hide();
+        }
       }, 600);
     } catch (e) {
       loading.hide();
