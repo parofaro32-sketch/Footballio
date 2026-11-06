@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>11v11 Football</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div id="ui">
+  <div id="menu" class="panel">
+    <h1>11v11 FOOTBALL</h1>
+    <div class="row">
+      <label>Name <input id="inpName" value="Player"></label>
+      <label>Team <select id="inpTeam"><option value="home">Home</option><option value="away">Away</option></select></label>
+    </div>
+    <div class="row">
+      <label>Kit <select id="inpKit"><option value="home">Home</option><option value="away">Away</option></select></label>
+      <label>Weather <select id="inpWeather"><option value="clear">Clear</option><option value="rain">Rain</option><option value="snow">Snow</option></select></label>
+      <label>Stadium <select id="inpStadium"><option value="classic">Classic</option><option value="night">Night</option><option value="desert">Desert</option></select></label>
+    </div>
+    <div class="row">
+      <label>Platform <select id="inpPlatform"><option value="auto">Auto</option><option value="pc">PC</option><option value="mobile">Mobile</option></select></label>
+    </div>
+    <div class="buttons">
+      <button id="btnCreate">Create Room</button>
+      <button id="btnJoin">Join Room</button>
+    </div>
+    <input id="inpRoomId" placeholder="Room ID (join)">
+    <div id="roomsList" class="list"></div>
+    <div id="msg" class="msg"></div>
+  </div>
+
+  <div id="lobby" class="panel hidden">
+    <h2 id="lobbyTitle">Lobby</h2>
+    <div id="lobbyPlayers" class="list"></div>
+    <div id="lobbySettings" class="row small"></div>
+    <div class="buttons">
+      <button id="btnReady">Ready</button>
+      <button id="btnStart">Start Match</button>
+      <button id="btnLeaveLobby">Leave</button>
+    </div>
+    <div id="lobbyMsg" class="msg"></div>
+  </div>
+
+  <div id="hud" class="hidden">
+    <div id="hudScore"><span id="hudHome">Home 0</span> - <span id="hudAway">Away 0</span></div>
+    <div id="hudTime">3:00</div>
+    <div id="hudWeather"></div>
+  </div>
+
+  <div id="controlsMobile" class="hidden">
+    <div id="joystick"></div>
+    <div id="btns">
+      <button id="btnShoot">Shoot</button>
+      <button id="btnPass">Pass</button>
+      <button id="btnTackle">Tackle</button>
+      <button id="btnSprint">Sprint</button>
+    </div>
+  </div>
+
+  <div id="gameOver" class="panel hidden">
+    <h2 id="goTitle">Match Over</h2>
+    <div id="goScore"></div>
+    <button id="goBack">Lobby</button>
+  </div>
+</div>
+<canvas id="canvas" touch-action="none"></canvas>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+    "socket.io-client": "https://esm.sh/socket.io-client@4.7.5"
+  }
+}
+</script>
+<script type="module" src="/js/main.js"></script>
+</body>
+</html>
