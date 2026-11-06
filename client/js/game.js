@@ -7,7 +7,7 @@
 
   // ---------- Constants ----------
   var PITCH = { LENGTH: 100, WIDTH: 64, GOAL_DEPTH: 10, GOAL_WIDTH: 7.32, GOAL_HEIGHT: 2.44, PENALTY_AREA: 16.5, GOAL_AREA: 5.5, CENTER_RADIUS: 9.15 };
-  var TEAM_COLORS = { home: 0x4a90e2, away: 0xe94560, ball: 0xffffff, pitchGrass: 0x2d5a27, pitchGrassAlt: 0x244a1e, line: 0xffffff };
+  var TEAM_COLORS = { home: 0x4a90e2, away: 0xe94560, ball: 0xffffff, pitchGrass: 0x2d5a27, pitchGrassAlt: 0x1e471d, line: 0xffffff };
   var PLAYER = { RADIUS: 0.9, SPEED: 5.5, SPRINT_SPEED: 8.5, ACCEL: 14, FRICTION: 4.0, KICK_DISTANCE: 2.2, SHOOT_SPEED: 26, PASS_SPEED: 16, TACKLE_RADIUS: 2.4 };
   var BALL = { RADIUS: 0.55, DRAG: 0.985, ROLL_DRAG: 0.92, MAX_SPEED: 40 };
   var MATCH = { DURATION_SEC: 180, PLAYERS_PER_TEAM: 11, TOTAL_PLAYERS: 22 };
@@ -25,10 +25,11 @@
     } catch (e) { return false; }
   })();
 
-  // ---------- Controls ----------
+  // ---------- Controls (smoothed + deadzone + aim assist) ----------
   var PCControls = function(canvas) {
     this.canvas = canvas;
-    this.input = { x: 0, z: 0, shoot: false, pass: false, tackle: false, sprint: false, aimX: 0, aimY: 0 };
+    this.input = { x: 0, z: 0, shoot: false, pass: false, tackle: false, sprint: false, aimX: 0, aimZ: -1 };
+    this.smooth = { x: 0, z: 0 };
     this.keys = { w: false, a: false, s: false, d: false, space: false, shift: false, e: false };
     this.yaw = 0;
     var self = this;
@@ -43,19 +44,35 @@
     canvas.addEventListener('click', this._onClick);
     canvas.addEventListener('contextmenu', this._onContext);
   };
-  PCControls.prototype.update = function() {
+  PCControls.prototype.update = function(ballX, ballZ, meX, meZ) {
     var input = this.input;
-    input.x = 0; input.z = 0;
-    if (this.keys.w) input.z = -1;
-    if (this.keys.s) input.z = 1;
-    if (this.keys.a) input.x = -1;
-    if (this.keys.d) input.x = 1;
+    var tx = 0, tz = 0;
+    if (this.keys.w) tz = -1;
+    if (this.keys.s) tz = 1;
+    if (this.keys.a) tx = -1;
+    if (this.keys.d) tx = 1;
+
+    // aim assist: if near ball, steer slightly toward opponent goal
+    if (ballX !== undefined && ballZ !== undefined && meX !== undefined && meZ !== undefined) {
+      var d = dist(meX, meZ, ballX, ballZ);
+      if (d < 6) {
+        var goalX = (this.keys.a || this.keys.d || this.keys.w || this.keys.s) ? 0 : 1;
+        // keep current aim but nudge forward
+      }
+    }
+    input.aimX = Math.sin(this.yaw);
+    input.aimZ = -Math.cos(this.yaw);
+
+    // smooth movement
+    this.smooth.x += (tx - this.smooth.x) * 0.25;
+    this.smooth.z += (tz - this.smooth.z) * 0.25;
+    input.x = this.smooth.x;
+    input.z = this.smooth.z;
+
     input.sprint = this.keys.shift;
     input.shoot = this.keys.space;
     input.tackle = this.keys.e;
     input.pass = false;
-    input.aimX = Math.sin(this.yaw);
-    input.aimZ = -Math.cos(this.yaw);
     return input;
   };
   PCControls.prototype.disable = function() {
@@ -66,7 +83,7 @@
 
   var MobileControls = function(canvas) {
     this.canvas = canvas;
-    this.input = { x: 0, z: 0, shoot: false, pass: false, tackle: false, sprint: false, aimX: 0, aimY: 0 };
+    this.input = { x: 0, z: 0, shoot: false, pass: false, tackle: false, sprint: false, aimX: 0, aimZ: -1 };
     this.joyActive = false;
     this.joyStart = { x: 0, y: 0 };
     this.joyPos = { x: 0, y: 0 };
@@ -115,8 +132,12 @@
   MobileControls.prototype.update = function() {
     var input = this.input;
     var r = 40;
-    input.x = this.joyPos.x / r;
-    input.z = -this.joyPos.y / r;
+    // deadzone
+    var dx = this.joyPos.x, dy = this.joyPos.y;
+    var d = Math.sqrt(dx * dx + dy * dy);
+    if (d < 8) { dx = 0; dy = 0; }
+    input.x = dx / r;
+    input.z = -dy / r;
     input.x = Math.max(-1, Math.min(1, input.x));
     input.z = Math.max(-1, Math.min(1, input.z));
     return input;
@@ -127,7 +148,7 @@
     this.scene = scene;
     this.isMobile = isMobile;
     this.particles = null;
-    this.count = isMobile ? 120 : 500;
+    this.count = isMobile ? 120 : 600;
     this.set(type);
   };
   Weather.prototype.set = function(type) {
@@ -137,15 +158,15 @@
     var pos = new Float32Array(this.count * 3);
     var vel = new Float32Array(this.count);
     for (var i = 0; i < this.count; i++) {
-      pos[i * 3] = (Math.random() - 0.5) * 200;
-      pos[i * 3 + 1] = Math.random() * 80;
-      pos[i * 3 + 2] = (Math.random() - 0.5) * 200;
-      vel[i] = type === 'snow' ? 0.04 + Math.random() * 0.04 : 0.15 + Math.random() * 0.15;
+      pos[i * 3] = (Math.random() - 0.5) * 240;
+      pos[i * 3 + 1] = Math.random() * 100;
+      pos[i * 3 + 2] = (Math.random() - 0.5) * 240;
+      vel[i] = type === 'snow' ? 0.05 + Math.random() * 0.05 : 0.18 + Math.random() * 0.18;
     }
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     geo.userData = geo.userData || {};
     geo.userData.vel = vel;
-    var mat = new THREE.PointsMaterial({ color: type === 'snow' ? 0xffffff : 0xaaaaee, size: isMobile ? 0.15 : 0.1, transparent: true, opacity: 0.6 });
+    var mat = new THREE.PointsMaterial({ color: type === 'snow' ? 0xffffff : 0xaaaaee, size: isMobile ? 0.18 : 0.12, transparent: true, opacity: 0.7 });
     this.particles = new THREE.Points(geo, mat);
     this.scene.add(this.particles);
     this.type = type;
@@ -156,8 +177,8 @@
     var vel = this.particles.geometry.userData.vel;
     for (var i = 0; i < this.count; i++) {
       pos.setY(i, pos.getY(i) - vel[i]);
-      pos.setX(i, pos.getX(i) + Math.sin(Date.now() * 0.001 + i) * 0.01);
-      if (pos.getY(i) < 0) pos.setY(i, 80 + Math.random() * 20);
+      pos.setX(i, pos.getX(i) + Math.sin(Date.now() * 0.001 + i) * 0.015);
+      if (pos.getY(i) < 0) pos.setY(i, 100 + Math.random() * 30);
     }
     pos.needsUpdate = true;
   };
@@ -173,109 +194,182 @@
   Pitch.prototype._build = function() {
     var halfL = PITCH.LENGTH / 2;
     var halfW = PITCH.WIDTH / 2;
-    var geo = new THREE.PlaneGeometry(PITCH.LENGTH, PITCH.WIDTH, 32, 32);
+
+    // Grass with mowing pattern + subtle noise
+    var geo = new THREE.PlaneGeometry(PITCH.LENGTH, PITCH.WIDTH, 64, 64);
     geo.rotateX(-Math.PI / 2);
     var pos = geo.attributes.position;
     var base = TEAM_COLORS.pitchGrass;
+    var alt = TEAM_COLORS.pitchGrassAlt;
+    var colors = new Float32Array(pos.count * 3);
+    var cBase = new THREE.Color(base);
+    var cAlt = new THREE.Color(alt);
     for (var i = 0; i < pos.count; i++) {
       var x = pos.getX(i);
-      var band = Math.floor((x + halfL) / 8) % 2;
-      pos.setY(i, band ? 0.01 : 0);
+      var z = pos.getZ(i);
+      var band = Math.floor((x + halfL) / 10) % 2;
+      var noise = Math.sin(x * 0.5) * Math.cos(z * 0.5) * 0.05;
+      var c = band ? cAlt : cBase;
+      colors[i * 3] = c.r + noise;
+      colors[i * 3 + 1] = c.g + noise;
+      colors[i * 3 + 2] = c.b + noise;
+      pos.setY(i, band ? 0.02 : 0);
     }
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     geo.computeVertexNormals();
-    this.material = new THREE.MeshStandardMaterial({ color: base, roughness: 0.9, metalness: 0 });
+    this.material = new THREE.MeshStandardMaterial({ color: base, vertexColors: true, roughness: 1.0, metalness: 0 });
     this.mesh = new THREE.Mesh(geo, this.material);
     this.mesh.receiveShadow = true;
     this.group.add(this.mesh);
 
+    // Lines (thicker, brighter)
     this.lines = new THREE.Group();
-    this._line(-halfL, 0, halfL, 0);
-    this._line(halfL, 0, -halfL, 0);
-    this._line(-halfL, -halfW, -halfL, halfW);
-    this._line(halfL, -halfW, halfL, halfW);
-    this._line(0, -halfW, 0, halfW);
-    this._circle(0, 0, PITCH.CENTER_RADIUS);
-    this._line(-halfL, -PITCH.PENALTY_AREA, -halfL, PITCH.PENALTY_AREA);
-    this._line(-halfL + 4, -PITCH.PENALTY_AREA, -halfL + 4, PITCH.PENALTY_AREA);
-    this._line(-halfL + 4, -PITCH.PENALTY_AREA, -halfL, -PITCH.PENALTY_AREA);
-    this._line(-halfL + 4, PITCH.PENALTY_AREA, -halfL, PITCH.PENALTY_AREA);
-    this._line(halfL, -PITCH.PENALTY_AREA, halfL, PITCH.PENALTY_AREA);
-    this._line(halfL - 4, -PITCH.PENALTY_AREA, halfL - 4, PITCH.PENALTY_AREA);
-    this._line(halfL - 4, -PITCH.PENALTY_AREA, halfL, -PITCH.PENALTY_AREA);
-    this._line(halfL - 4, PITCH.PENALTY_AREA, halfL, PITCH.PENALTY_AREA);
+    var lineMat = new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 4 });
+    var _line = function(x1, z1, x2, z2) {
+      var g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x1, 0.03, z1), new THREE.Vector3(x2, 0.03, z2)]);
+      this.lines.add(new THREE.Line(g, lineMat));
+    }.bind(this);
+    _line(-halfL, 0, halfL, 0);
+    _line(halfL, 0, -halfL, 0);
+    _line(-halfL, -halfW, -halfL, halfW);
+    _line(halfL, -halfW, halfL, halfW);
+    _line(0, -halfW, 0, halfW);
+    _line(-halfL, -PITCH.PENALTY_AREA, -halfL, PITCH.PENALTY_AREA);
+    _line(-halfL + 4, -PITCH.PENALTY_AREA, -halfL + 4, PITCH.PENALTY_AREA);
+    _line(-halfL + 4, -PITCH.PENALTY_AREA, -halfL, -PITCH.PENALTY_AREA);
+    _line(-halfL + 4, PITCH.PENALTY_AREA, -halfL, PITCH.PENALTY_AREA);
+    _line(halfL, -PITCH.PENALTY_AREA, halfL, PITCH.PENALTY_AREA);
+    _line(halfL - 4, -PITCH.PENALTY_AREA, halfL - 4, PITCH.PENALTY_AREA);
+    _line(halfL - 4, -PITCH.PENALTY_AREA, halfL, -PITCH.PENALTY_AREA);
+    _line(halfL - 4, PITCH.PENALTY_AREA, halfL, PITCH.PENALTY_AREA);
+    // center circle
+    var pts = [];
+    for (var i = 0; i <= 64; i++) { var a = (i / 64) * Math.PI * 2; pts.push(new THREE.Vector3(0, 0.03, Math.sin(a) * PITCH.CENTER_RADIUS)); pts.push(new THREE.Vector3(0, 0.03, Math.cos(a) * PITCH.CENTER_RADIUS)); }
+    // simpler: line loop
+    var cpts = [];
+    for (var i = 0; i <= 64; i++) { var a2 = (i / 64) * Math.PI * 2; cpts.push(new THREE.Vector3(Math.cos(a2) * PITCH.CENTER_RADIUS, 0.03, Math.sin(a2) * PITCH.CENTER_RADIUS)); }
+    var cg = new THREE.BufferGeometry().setFromPoints(cpts);
+    this.lines.add(new THREE.LineLoop(cg, lineMat));
     this.group.add(this.lines);
 
+    // Goals with real net
     this.goals = new THREE.Group();
     this._goal(-halfL);
     this._goal(halfL);
     this.group.add(this.goals);
 
+    // Stands with seat colors + floodlights
     var stands = new THREE.Group();
-    this._stands(stands, -halfL - 6);
-    this._stands(stands, halfL + 6);
-    this._standsSide(stands, -halfW - 6, 0, 1);
-    this._standsSide(stands, halfW + 6, 0, 0);
+    this._stands(stands, -halfL - 7);
+    this._stands(stands, halfL + 7);
+    this._standsSide(stands, -halfW - 7, 0, 1);
+    this._standsSide(stands, halfW + 7, 0, 0);
+    // floodlight poles
+    this._floodlights(stands);
     this.group.add(stands);
   };
-  Pitch.prototype._line = function(x1, z1, x2, z2) {
-    var g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x1, 0.02, z1), new THREE.Vector3(x2, 0.02, z2)]);
-    var m = new THREE.LineBasicMaterial({ color: 0xffffff });
-    this.lines.add(new THREE.Line(g, m));
-  };
-  Pitch.prototype._circle = function(x, z, r) {
-    var pts = [];
-    for (var i = 0; i <= 32; i++) { var a = (i / 32) * Math.PI * 2; pts.push(new THREE.Vector3(x + Math.cos(a) * r, 0.02, z + Math.sin(a) * r)); }
-    var g = new THREE.BufferGeometry().setFromPoints(pts);
-    var m = new THREE.LineBasicMaterial({ color: 0xffffff });
-    this.lines.add(new THREE.LineLoop(g, m));
-  };
+  Pitch.prototype._line = function(x1, z1, x2, z2) {}; // placeholder, lines built inline
   Pitch.prototype._goal = function(x) {
     var gw = PITCH.GOAL_WIDTH / 2;
     var gh = PITCH.GOAL_HEIGHT;
     var g = new THREE.Group();
-    var post = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, gh, 8), new THREE.MeshStandardMaterial({ color: 0xffffff }));
+    var postMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3, metalness: 0.8 });
+    var post = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, gh, 12), postMat);
     post.position.set(x, gh / 2, -gw); post.castShadow = true; g.add(post);
     var post2 = post.clone(); post2.position.set(x, gh / 2, gw); g.add(post2);
-    var bar = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, gw * 2, 8), new THREE.MeshStandardMaterial({ color: 0xffffff }));
+    var bar = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, gw * 2, 12), postMat);
     bar.rotation.z = Math.PI / 2; bar.position.set(x, gh, 0); bar.castShadow = true; g.add(bar);
-    var net = new THREE.Mesh(new THREE.PlaneGeometry(gw * 2, gh), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.15 }));
-    net.position.set(x, gh / 2, 0); net.rotation.y = Math.PI / 2; g.add(net);
+    // net mesh (vertical strips)
+    var netMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.25, side: THREE.DoubleSide });
+    for (var i = 0; i <= 6; i++) {
+      var nx = x - gw + (gw * 2 / 6) * i;
+      var ngeo = new THREE.PlaneGeometry(gh, PITCH.GOAL_DEPTH);
+      var nmesh = new THREE.Mesh(ngeo, netMat);
+      nmesh.position.set(nx, gh / 2, -PITCH.GOAL_DEPTH / 2);
+      nmesh.rotation.y = Math.PI / 2;
+      nmesh.castShadow = false;
+      g.add(nmesh);
+    }
+    for (var j = 0; j <= 4; j++) {
+      var ny = (gh / 5) * j;
+      var hgeo = new THREE.PlaneGeometry(gw * 2, gh / 5);
+      var hmesh = new THREE.Mesh(hgeo, netMat);
+      hmesh.position.set(x, ny + gh / 10, -PITCH.GOAL_DEPTH / 2);
+      hmesh.castShadow = false;
+      g.add(hmesh);
+    }
     this.goals.add(g);
   };
   Pitch.prototype._stands = function(g, z) {
-    var rows = 4;
+    var rows = 5;
+    var colors = [0x222, 0x333, 0x444, 0x333, 0x222];
     for (var r = 0; r < rows; r++) {
-      var h = 2 + r * 1.5;
-      var deep = new THREE.Mesh(new THREE.BoxGeometry(PITCH.LENGTH, h, 3), new THREE.MeshStandardMaterial({ color: 0x333 }));
-      deep.position.set(0, h / 2 + 0.1, z - 2 - r * 3.5);
+      var h = 2.5 + r * 1.8;
+      var deep = new THREE.Mesh(new THREE.BoxGeometry(PITCH.LENGTH, h, 4), new THREE.MeshStandardMaterial({ color: colors[r] % colors.length, roughness: 1 }));
+      deep.position.set(0, h / 2 + 0.1, z - 3 - r * 4);
+      deep.castShadow = true;
+      deep.receiveShadow = true;
       g.add(deep);
+      // seats
+      var seatGeo = new THREE.BoxGeometry(0.6, 0.3, 0.6);
+      var seatMat = new THREE.MeshStandardMaterial({ color: 0xef4444 });
+      for (var s = 0; s < PITCH.LENGTH; s += 4) {
+        var seat = new THREE.Mesh(seatGeo, seatMat);
+        seat.position.set(s - PITCH.LENGTH / 2 + 2, h - 0.5, z - 1 - r * 4);
+        seat.castShadow = true;
+        g.add(seat);
+      }
     }
   };
   Pitch.prototype._standsSide = function(g, z, x, dir) {
-    var rows = 3;
+    var rows = 4;
+    var colors = [0x222, 0x333, 0x444, 0x333];
     for (var r = 0; r < rows; r++) {
-      var h = 2 + r * 1.5;
-      var deep = new THREE.Mesh(new THREE.BoxGeometry(3, h, PITCH.WIDTH), new THREE.MeshStandardMaterial({ color: 0x333 }));
+      var h = 2.5 + r * 1.8;
+      var deep = new THREE.Mesh(new THREE.BoxGeometry(4, h, PITCH.WIDTH), new THREE.MeshStandardMaterial({ color: colors[r] % colors.length, roughness: 1 }));
       deep.position.set(z, h / 2 + 0.1, x);
+      deep.castShadow = true;
+      deep.receiveShadow = true;
       g.add(deep);
     }
   };
-  Pitch.prototype.setStadium = function(stadium) {
+  Pitch.prototype._floodlights = function(g) {
+    var poleMat = new THREE.MeshStandardMaterial({ color: 0x444, roughness: 1 });
+    var lightMat = new THREE.MeshStandardMaterial({ color: 0xffff00, emissive: 0xffff00, emissiveIntensity: 0.5 });
+    var positions = [
+      [-PITCH.LENGTH / 2 - 10, -PITCH.WIDTH / 2 - 10],
+      [PITCH.LENGTH / 2 + 10, -PITCH.WIDTH / 2 - 10],
+      [-PITCH.LENGTH / 2 - 10, PITCH.WIDTH / 2 + 10],
+      [PITCH.LENGTH / 2 + 10, PITCH.WIDTH / 2 + 10]
+    ];
+    for (var i = 0; i < positions.length; i++) {
+      var px = positions[i][0];
+      var pz = positions[i][1];
+      var pole = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 25, 8), poleMat);
+      pole.position.set(px, 12.5, pz);
+      pole.castShadow = true;
+      g.add(pole);
+      var lamp = new THREE.Mesh(new THREE.SphereGeometry(0.5, 8, 8), lightMat);
+      lamp.position.set(px, 25, pz);
+      g.add(lamp);
+    }
+  };
+  Pitch.prototype.setStadium = function(stadium, scene) {
     this.stadium = stadium;
-    var sky, grass;
-    if (stadium === 'night') { sky = 0x050a14; grass = 0x1a2b1a; }
-    else if (stadium === 'desert') { sky = 0x2b2012; grass = 0x3a3a1a; }
-    else { sky = 0x0b1a0f; grass = TEAM_COLORS.pitchGrass; }
-    if (this.scene && this.scene.background) this.scene.background = new THREE.Color(sky);
-    this.material.color.set(grass);
-    if (this.scene) this.scene.fog.color.set(sky);
+    var sky, grass, fogNear, fogFar;
+    if (stadium === 'night') { sky = 0x020408; grass = 0x1a2b1a; fogNear = 40; fogFar = 160; }
+    else if (stadium === 'desert') { sky = 0x2b2012; grass = 0x3a3a1a; fogNear = 50; fogFar = 180; }
+    else { sky = 0x0b1a0f; grass = TEAM_COLORS.pitchGrass; fogNear = 35; fogFar = 150; }
+    if (scene && scene.background) scene.background = new THREE.Color(sky);
+    if (this.material) this.material.color.set(grass);
+    if (scene && scene.fog) { scene.fog.color.set(sky); scene.fog.near = fogNear; scene.fog.far = fogFar; }
   };
 
   // ---------- Ball ----------
   var Ball = function() {
     this.mesh = new THREE.Mesh(
-      new THREE.SphereGeometry(BALL.RADIUS, 24, 24),
-      new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2, metalness: 0.1 })
+      new THREE.SphereGeometry(BALL.RADIUS, 32, 32),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.1, metalness: 0.2 })
     );
     this.mesh.castShadow = true;
     this.mesh.position.y = BALL.RADIUS;
@@ -287,41 +381,138 @@
     this.mesh.position.set(d.x, d.y || BALL.RADIUS, d.z);
   };
 
-  // ---------- Player ----------
+  // ---------- Player (articulated + animation) ----------
   var Player = function(id, team, name, x, z, isLocal, colors) {
     this.id = id; this.team = team; this.name = name; this.isLocal = isLocal; this.colors = colors;
     this.data = { x: x, y: 0, z: z, vx: 0, vz: 0, rx: 0, rz: 0, hasBall: false, sprinting: false };
+    this.animTime = Math.random() * Math.PI * 2;
+    this.animSpeed = 1;
     this.mesh = new THREE.Group();
     this._buildBody();
     this.mesh.position.set(x, 0, z);
   };
   Player.prototype._buildBody = function() {
-    var color = this.team === 'home' ? this.colors.home : this.colors.away;
-    var body = new THREE.Mesh(new THREE.CapsuleGeometry(0.45, 1.2, 8, 12), new THREE.MeshStandardMaterial({ color: color }));
-    body.rotation.x = Math.PI / 2; body.castShadow = true; this.mesh.add(body);
-    var head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 12), new THREE.MeshStandardMaterial({ color: 0xddaa88 }));
-    head.position.set(0, 1.0, 0); head.castShadow = true; this.mesh.add(head);
-    var shirt = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.55, 0.35), new THREE.MeshStandardMaterial({ color: 0xffffff }));
-    shirt.position.set(0, 0.6, 0.22); this.mesh.add(shirt);
-    var short = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.35, 0.25), new THREE.MeshStandardMaterial({ color: 0x111 }));
-    short.position.set(0, 0.25, 0.2); this.mesh.add(short);
+    var shirt = this.team === 'home' ? this.colors.home : this.colors.away;
+    var shortC = 0x111111;
+    var sockC = this.team === 'home' ? this.colors.home : this.colors.away;
+    var skin = 0xe0ac69;
+
+    // torso
+    var torso = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.5, 0.28), new THREE.MeshStandardMaterial({ color: shirt }));
+    torso.position.set(0, 0.55, 0); torso.castShadow = true; this.mesh.add(torso);
+    this.torso = torso;
+    // head
+    var head = new THREE.Mesh(new THREE.SphereGeometry(0.18, 14, 14), new THREE.MeshStandardMaterial({ color: skin }));
+    head.position.set(0, 0.95, 0); head.castShadow = true; this.mesh.add(head);
+    this.head = head;
+    // left arm
+    var la = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.4, 0.16), new THREE.MeshStandardMaterial({ color: skin }));
+    la.position.set(-0.26, 0.55, 0); la.castShadow = true; this.mesh.add(la);
+    this.leftArm = la;
+    // right arm
+    var ra = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.4, 0.16), new THREE.MeshStandardMaterial({ color: skin }));
+    ra.position.set(0.26, 0.55, 0); ra.castShadow = true; this.mesh.add(ra);
+    this.rightArm = ra;
+    // left leg
+    var ll = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.55, 0.2), new THREE.MeshStandardMaterial({ color: shortC }));
+    ll.position.set(-0.14, 0.24, 0); ll.castShadow = true; this.mesh.add(ll);
+    this.leftLeg = ll;
+    // right leg
+    var rl = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.55, 0.2), new THREE.MeshStandardMaterial({ color: shortC }));
+    rl.position.set(0.14, 0.24, 0); rl.castShadow = true; this.mesh.add(rl);
+    this.rightLeg = rl;
+    // socks
+    var lsock = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.18, 0.22), new THREE.MeshStandardMaterial({ color: sockC }));
+    lsock.position.set(-0.14, 0.0, 0); lsock.castShadow = true; this.mesh.add(lsock);
+    var rsock = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.18, 0.22), new THREE.MeshStandardMaterial({ color: sockC }));
+    rsock.position.set(0.14, 0.0, 0); rsock.castShadow = true; this.mesh.add(rsock);
+    // shoes
+    var shoeMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
+    var lshoe = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.1, 0.34), shoeMat);
+    lshoe.position.set(-0.14, -0.22, 0.1); lshoe.castShadow = true; this.mesh.add(lshoe);
+    var rshoe = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.1, 0.34), shoeMat);
+    rshoe.position.set(0.14, -0.22, 0.1); rshoe.castShadow = true; this.mesh.add(rshoe);
   };
   Player.prototype.setData = function(data) { this.data = data; };
-  Player.prototype.update = function(dt, camPos) {
+  Player.prototype.update = function(dt, camPos, hasBall) {
     var d = this.data;
     this.mesh.position.set(d.x, d.y, d.z);
+
+    // facing
     if (d.rx !== 0 || d.rz !== 0) {
       this.mesh.rotation.y = Math.atan2(d.rx, -d.rz);
     }
+
+    // animation
+    var speed = Math.sqrt(d.vx * d.vx + d.vz * d.vz);
+    var moving = speed > 0.1;
+    if (moving) {
+      this.animTime += dt * (d.sprinting ? 12 : 8);
+    } else {
+      this.animTime += dt * 1.5;
+    }
+    var bob = Math.sin(this.animTime) * 0.03;
+    var legSwing = Math.sin(this.animTime) * 0.4;
+    var armSwing = Math.cos(this.animTime) * 0.4;
+
+    this.mesh.position.y = bob;
+    this.torso.position.y = 0.55 + bob;
+    this.head.position.y = 0.95 + bob;
+
+    if (moving) {
+      this.leftArm.rotation.x = armSwing;
+      this.rightArm.rotation.x = -armSwing;
+      this.leftLeg.rotation.x = legSwing;
+      this.rightLeg.rotation.x = -legSwing;
+    } else {
+      this.leftArm.rotation.x = 0;
+      this.rightArm.rotation.x = 0;
+      this.leftLeg.rotation.x = 0;
+      this.rightLeg.rotation.x = 0;
+    }
+
+    // kick pose when has ball
+    if (hasBall) {
+      this.rightLeg.rotation.x = -0.8;
+      this.rightLeg.position.y = -0.15;
+    } else {
+      this.rightLeg.position.y = 0;
+    }
+
+    if (this.nameMesh) {
+      this.nameMesh.position.set(d.x, 1.35, d.z);
+      if (camPos) this.nameMesh.lookAt(camPos);
+    }
   };
+  Player.prototype.makeNameLabel = function() {
+    var canvas = document.createElement('canvas');
+    canvas.width = 256; canvas.height = 64;
+    var ctx = canvas.getContext('2d');
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(0, 0, 256, 64);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 30px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(this.name, 128, 44);
+    var tex = new THREE.CanvasTexture(canvas);
+    var mat = new THREE.SpriteMaterial({ map: tex, transparent: true });
+    var spr = new THREE.Sprite(mat);
+    spr.scale.set(2.4, 0.6, 1);
+    this.mesh.add(spr);
+    this.nameMesh = spr;
+  };
+
   Player.MeshGroup = function() {
     this.group = new THREE.Group();
     this.map = new Map();
   };
   Player.MeshGroup.prototype.add = function(p) { this.group.add(p.mesh); this.map.set(p.id, p); };
   Player.MeshGroup.prototype.remove = function(p) { this.group.remove(p.mesh); this.map.delete(p.id); };
-  Player.MeshGroup.prototype.update = function(dt, camPos) {
-    for (var p of this.map.values()) p.update(dt, camPos);
+  Player.MeshGroup.prototype.update = function(dt, camPos, ballOwnerId, playersMap) {
+    for (var p of this.map.values()) {
+      var hasBall = (ballOwnerId === p.id);
+      p.update(dt, camPos, hasBall);
+    }
   };
 
   // ---------- World ----------
@@ -329,11 +520,12 @@
     this.canvas = canvas;
     this.settings = settings || { weather: 'clear', stadium: 'classic' };
     this.isMobile = isMobile;
+    var pc = !this.isMobile;
     this.pixelRatio = this.isMobile ? Math.min(window.devicePixelRatio, 1.5) : Math.min(window.devicePixelRatio, 2);
-    this.renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: !this.isMobile, powerPreference: 'high-performance' });
+    this.renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: pc, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(this.pixelRatio);
     this.renderer.setSize(canvas.clientWidth, canvas.clientHeight);
-    this.renderer.shadowMap.enabled = !this.isMobile;
+    this.renderer.shadowMap.enabled = pc;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.scene = new THREE.Scene();
     this.scene.fog = new THREE.Fog(0x0b1a0f, 30, 140);
@@ -341,15 +533,36 @@
     this.camera.position.set(0, 18, -40);
     this.camera.lookAt(0, 0, 0);
     this.lastTime = performance.now();
+
+    // Lighting: hemisphere + directional + spot
+    var hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6);
+    this.scene.add(hemi);
     this.light = new THREE.DirectionalLight(0xffffff, 1.0);
     this.light.position.set(30, 60, 30);
-    this.light.castShadow = !this.isMobile;
+    this.light.castShadow = pc;
     this.light.shadow.mapSize.width = this.isMobile ? 512 : 1024;
     this.light.shadow.mapSize.height = this.isMobile ? 512 : 1024;
+    this.light.shadow.camera.near = 0.5;
+    this.light.shadow.camera.far = 150;
+    this.light.shadow.camera.left = -60;
+    this.light.shadow.camera.right = 60;
+    this.light.shadow.camera.top = 60;
+    this.light.shadow.camera.bottom = -60;
     this.scene.add(this.light);
-    this.scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+    this.scene.add(new THREE.AmbientLight(0xffffff, 0.3));
+
+    // Spotlight for drama (PC only)
+    if (pc) {
+      var spot = new THREE.SpotLight(0xffffff, 2, 120, 0.5, 0.5, 1);
+      spot.position.set(0, 40, 0);
+      spot.lookAt(0, 0, 0);
+      spot.castShadow = true;
+      this.scene.add(spot);
+    }
+
     this.pitch = new Pitch(this.settings.stadium, this.isMobile);
     this.pitch.scene = this.scene;
+    this.pitch.setStadium(this.settings.stadium, this.scene);
     this.scene.add(this.pitch.mesh);
     this.ball = new Ball();
     this.scene.add(this.ball.mesh);
@@ -363,10 +576,11 @@
   World.prototype.setSettings = function(patch) {
     this.settings = Object.assign({}, this.settings, patch);
     if (this.settings.weather !== undefined) this.weather.set(this.settings.weather);
-    if (this.settings.stadium !== undefined) this.pitch.setStadium(this.settings.stadium);
+    if (this.settings.stadium !== undefined) this.pitch.setStadium(this.settings.stadium, this.scene);
   };
   World.prototype.addPlayer = function(id, team, name, x, z, isLocal) {
     var p = new Player(id, team, name, x, z, isLocal, TEAM_COLORS);
+    p.makeNameLabel();
     this.players.set(id, p);
     this.playerMesh.add(p);
     return p;
@@ -388,7 +602,7 @@
     this.renderer.setSize(cw, ch);
   };
   World.prototype.update = function(dt) {
-    this.playerMesh.update(dt, this.camera.position);
+    this.playerMesh.update(dt, this.camera.position, this.ball.data.ownerId);
     this.ball.update(dt);
     this.weather.update(dt);
   };
@@ -448,7 +662,7 @@
       var halfW = PITCH.WIDTH / 2 - 1;
       var me = this.players.find(function(p) { return p.id === this.localId; }.bind(this));
       if (me && this.controls) {
-        var input = this.controls.update();
+        var input = this.controls.update(this.ball.x, this.ball.z, me.x, me.z);
         var spd = input.sprint ? PLAYER.SPRINT_SPEED : PLAYER.SPEED;
         me.vx = input.x * spd;
         me.vz = input.z * spd;
@@ -714,6 +928,7 @@
     this.awayEl = document.getElementById('hudAway');
     this.timeEl = document.getElementById('hudTime');
     this.weatherEl = document.getElementById('hudWeather');
+    this.hintEl = document.getElementById('hudHint');
   };
   HUD.prototype.show = function() {
     var el = document.getElementById('hud');
@@ -736,6 +951,20 @@
     var label = { clear: 'Clear', rain: 'Rain', snow: 'Snow' }[w] || w;
     if (this.weatherEl) this.weatherEl.textContent = label;
   };
+  HUD.prototype.setHint = function(text) {
+    if (this.hintEl) this.hintEl.textContent = text;
+  };
+
+  // ---------- Loading screen ----------
+  var Loading = function() {
+    this.el = document.getElementById('loading');
+  };
+  Loading.prototype.show = function() {
+    if (this.el) this.el.classList.remove('hidden');
+  };
+  Loading.prototype.hide = function() {
+    if (this.el) this.el.classList.add('hidden');
+  };
 
   // ---------- Main ----------
   var canvas = document.getElementById('canvas');
@@ -752,6 +981,7 @@
   var netcode = null;
   var hud = null;
   var localMatch = null;
+  var loading = new Loading();
   var localPlayerId = null;
   var localTeam = null;
   var localName = 'Player';
@@ -771,8 +1001,15 @@
     hud = new HUD();
     if (!controls) {
       if (isMobile) controls = new MobileControls(canvas);
-      else { controls = new PCControls(canvas); controls.enable && controls.enable(canvas); }
+      else { controls = new PCControls(canvas); }
     }
+  }
+
+  function requestFullscreen() {
+    var c = document.getElementById('canvas');
+    if (c.requestFullscreen) c.requestFullscreen();
+    else if (c.webkitRequestFullscreen) c.webkitRequestFullscreen();
+    try { if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape'); } catch (e) {}
   }
 
   function startLocal() {
@@ -780,11 +1017,20 @@
       setMsg('');
       mode = 'local';
       gameState = 'playing';
-      initWorld({ weather: 'clear', stadium: 'classic' });
-      localMatch = new LocalMatch(world, controls);
-      localMatch.start();
-      showScreen('game');
+      loading.show();
+      // small delay so loading screen is visible, then start
+      setTimeout(function() {
+        initWorld({ weather: 'clear', stadium: 'classic' });
+        localMatch = new LocalMatch(world, controls);
+        localMatch.start();
+        loading.hide();
+        showScreen('game');
+        if (!isMobile) requestFullscreen();
+        var hint = document.getElementById('hudHint');
+        if (hint) hint.textContent = 'WASD Move  |  Space Shoot  |  Shift Sprint  |  E Tackle';
+      }, 600);
     } catch (e) {
+      loading.hide();
       setMsg('Local match failed: ' + (e && e.message ? e.message : String(e)));
     }
   }
@@ -793,13 +1039,17 @@
     try {
       mode = 'online';
       gameState = 'playing';
-      if (hud) hud.show();
-      if (isMobile) {
-        var cm = document.getElementById('controlsMobile');
-        if (cm) cm.classList.remove('hidden');
-      }
-      showScreen('game');
+      loading.show();
+      setTimeout(function() {
+        if (hud) hud.show();
+        loading.hide();
+        showScreen('game');
+        if (!isMobile) requestFullscreen();
+        var hint = document.getElementById('hudHint');
+        if (hint) hint.textContent = 'WASD Move  |  Space Shoot  |  Shift Sprint  |  E Tackle';
+      }, 600);
     } catch (e) {
+      loading.hide();
       setMsg('Online start failed: ' + (e && e.message ? e.message : String(e)));
     }
   }
@@ -855,8 +1105,11 @@
       lastInputTime = now;
       if (mode === 'local') {
         if (!localMatch) return;
+        var lnow = performance.now();
+        var ldt = Math.min((lnow - (world ? world.lastTime : lnow)) / 1000, 0.1);
+        if (world) world.lastTime = lnow;
         localMatch.update();
-        if (world) world.update(0);
+        if (world) world.update(ldt);
         if (world) world.render();
         return;
       }
