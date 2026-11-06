@@ -62,7 +62,8 @@ function startLocal() {
     showScreen('game');
   } catch (e) {
     console.error('startLocal failed:', e);
-    document.getElementById('msg').textContent = 'Local match failed to start: ' + (e.message || e);
+    const msgEl = document.getElementById('msg');
+    if (msgEl) msgEl.textContent = 'Local match failed: ' + (e.message || String(e));
   }
 }
 
@@ -136,6 +137,7 @@ function applyLocalInput(input) {
 function loop() {
   requestAnimationFrame(loop);
   if (world) {
+    sendInputLoop();
     if (gameState === 'playing' && mode === 'online') {
       const now = performance.now();
       const dt = Math.min((now - (world.lastTime || now)) / 1000, 0.1);
@@ -218,7 +220,12 @@ function connect() {
 
   // Local play button
   const btnLocal = document.getElementById('btnLocal');
-  if (btnLocal) btnLocal.addEventListener('click', startLocal);
+  if (btnLocal) {
+    btnLocal.addEventListener('click', (e) => {
+      e.preventDefault();
+      startLocal();
+    });
+  }
 
   // Settings
   menu.onSetting = (key, value) => {
