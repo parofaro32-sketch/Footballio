@@ -22,7 +22,6 @@
     <div class="row">
       <label>Platform <select id="inpPlatform"><option value="auto">Auto</option><option value="pc">PC</option><option value="mobile">Mobile</option></select></label>
     </div>
-    <div class="msg" id="srvMsg" style="font-size:12px;opacity:0.7;margin-top:8px;">Online multiplayer needs a Socket.io backend; Local works offline.</div>
     <div class="buttons">
       <button id="btnCreate">Create Room</button>
       <button id="btnJoin">Join Room</button>
@@ -52,7 +51,9 @@
   </div>
 
   <div id="controlsMobile" class="hidden">
-    <div id="joystick"></div>
+    <div id="joystick">
+      <div id="jsBase"></div><div id="jsThumb"></div>
+    </div>
     <div id="btns">
       <button id="btnShoot">Shoot</button>
       <button id="btnPass">Pass</button>
@@ -69,17 +70,8 @@
 </div>
 <canvas id="canvas" touch-action="none"></canvas>
 
-<script type="importmap">
-{
-  "imports": {
-    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
-    "socket.io-client": "https://esm.sh/socket.io-client@4.7.5"
-  }
-}
-</script>
-<script type="module" src="/js/main.js"></script>
-<!-- Set window.__SOCKET_URL__ to your hosted Socket.io backend (e.g. https://footballio-backend.onrender.com) -->
-<!-- <script>window.__SOCKET_URL__ = 'https://your-backend.onrender.com';</script> -->
+<script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+<script src="https://esm.sh/socket.io-client@4.7.5"></script>
+<script src="/js/game.js"></script>
 </body>
 </html>
