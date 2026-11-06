@@ -973,7 +973,7 @@
   Loading.prototype.hide = function() {
     if (this.el) {
       this.el.classList.add('hidden');
-      this.el.style.display = 'none';
+      this.el.style.setProperty('display', 'none', 'important');
     }
     if (this._forceTimer) { clearTimeout(this._forceTimer); this._forceTimer = null; }
   };
@@ -1108,6 +1108,7 @@
 
   function showScreen(name) {
     try {
+      if (name === 'menu') { loading.hide(); }
       [menuEl, lobbyEl, gameOverEl].forEach(function(el) { if (el) el.classList.add('hidden'); });
       var hudEl = document.getElementById('hud');
       if (hudEl) hudEl.classList.add('hidden');
@@ -1278,6 +1279,9 @@
       menuUI.onSetTeam = function(t) { localTeam = t; if (socket) socket.setTeam(t); };
 
       window.addEventListener('resize', function() { if (world) world.resize(); });
+
+      // Hide loading screen on initial page load
+      loading.hide();
 
       showScreen('menu');
       loop();
