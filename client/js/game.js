@@ -958,12 +958,24 @@
   // ---------- Loading screen ----------
   var Loading = function() {
     this.el = document.getElementById('loading');
+    this._forceTimer = null;
   };
   Loading.prototype.show = function() {
-    if (this.el) this.el.classList.remove('hidden');
+    if (this.el) {
+      this.el.classList.remove('hidden');
+      this.el.style.display = 'flex';
+    }
+    // Safety net: force-hide loading after 3s no matter what
+    var self = this;
+    if (this._forceTimer) clearTimeout(this._forceTimer);
+    this._forceTimer = setTimeout(function() { self.hide(); }, 3000);
   };
   Loading.prototype.hide = function() {
-    if (this.el) this.el.classList.add('hidden');
+    if (this.el) {
+      this.el.classList.add('hidden');
+      this.el.style.display = 'none';
+    }
+    if (this._forceTimer) { clearTimeout(this._forceTimer); this._forceTimer = null; }
   };
 
   // ---------- Main ----------
@@ -1029,13 +1041,16 @@
           if (hint) hint.textContent = 'WASD Move  |  Space Shoot  |  Shift Sprint  |  E Tackle';
         } catch (e) {
           setMsg('Local match failed: ' + (e && e.message ? e.message : String(e)));
+          showScreen('game');
+          if (!isMobile) requestFullscreen();
         } finally {
           loading.hide();
         }
-      }, 600);
+      }, 100);
     } catch (e) {
       loading.hide();
       setMsg('Local match failed: ' + (e && e.message ? e.message : String(e)));
+      showScreen('menu');
     }
   }
 
@@ -1053,13 +1068,15 @@
           if (hint) hint.textContent = 'WASD Move  |  Space Shoot  |  Shift Sprint  |  E Tackle';
         } catch (e) {
           setMsg('Online start failed: ' + (e && e.message ? e.message : String(e)));
+          showScreen('game');
         } finally {
           loading.hide();
         }
-      }, 600);
+      }, 100);
     } catch (e) {
       loading.hide();
       setMsg('Online start failed: ' + (e && e.message ? e.message : String(e)));
+      showScreen('menu');
     }
   }
 
@@ -1283,6 +1300,7 @@
     localTeam = (teamEl && teamEl.value) || 'home';
     if (socket) socket.join(roomId, localName, localTeam);
   };
+  window.__forceHideLoading__ = function() { loading.hide(); showScreen('game'); };
 
   connect();
 
