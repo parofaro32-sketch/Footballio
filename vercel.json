@@ -2,6 +2,7 @@
   "version": 2,
   "routes": [
     { "src": "/", "dest": "/client/index.html" },
+    { "src": "/shared/(.*)", "dest": "/shared/$1" },
     { "src": "/(.*)", "dest": "/client/$1" }
   ]
 }

@@ -11,17 +11,21 @@ import { HUD } from './ui/hud.js';
 import { MSG } from '/shared/protocol.js';
 
 const canvas = document.getElementById('canvas');
+const msgEl = document.getElementById('msg');
 
 let scheme = controlScheme();
-document.getElementById('inpPlatform').value = scheme;
-if (isMobile()) document.getElementById('controlsMobile').classList.remove('hidden');
+const selPlatform = document.getElementById('inpPlatform');
+if (selPlatform) selPlatform.value = scheme;
+if (isMobile()) {
+  const cm = document.getElementById('controlsMobile');
+  if (cm) cm.classList.remove('hidden');
+}
 
 let world = null;
 let controls = null;
 let socket = null;
 let netcode = null;
 let hud = null;
-let menu = null;
 let localMatch = null;
 
 let localPlayerId = null;
@@ -31,20 +35,22 @@ let lastInputTime = 0;
 const INPUT_INTERVAL = 1000 / 30;
 
 let gameState = 'lobby';
-let localPlayer = null;
-let mode = null; // 'online' | 'local'
+let mode = null;
 
 const menuEl = document.getElementById('menu');
 const lobbyEl = document.getElementById('lobby');
 const gameOverEl = document.getElementById('gameOver');
 
+function setMsg(text) {
+  if (msgEl) msgEl.textContent = text || '';
+  if (text) console.error(text);
+}
+
 function initWorld(settings) {
-  if (world) world.dispose();
+  if (world) { try { world.dispose(); } catch (e) {} }
   world = new World(canvas, settings);
   netcode = new Netcode();
   hud = new HUD();
-
-  // Always ensure controls exist for local mode
   if (!controls) {
     if (isMobile()) controls = new MobileControls(canvas);
     else { controls = new PCControls(); controls.enable(canvas); }
@@ -53,193 +59,246 @@ function initWorld(settings) {
 
 function startLocal() {
   try {
+    setMsg('');
     mode = 'local';
     gameState = 'playing';
     initWorld({ weather: 'clear', stadium: 'classic' });
-    localPlayer = world.addPlayer('you', 'home', 'You', -20, 0, true);
     localMatch = new LocalMatch(world, controls);
     localMatch.start();
     showScreen('game');
   } catch (e) {
-    console.error('startLocal failed:', e);
-    const msgEl = document.getElementById('msg');
-    if (msgEl) msgEl.textContent = 'Local match failed: ' + (e.message || String(e));
+    setMsg('Local match failed: ' + (e && e.message ? e.message : String(e)));
   }
 }
 
-function startOnline(settings) {
-  mode = 'online';
-  gameState = 'playing';
-  hud.show();
-  if (isMobile()) document.getElementById('controlsMobile').classList.remove('hidden');
-  showScreen('game');
+function startOnline() {
+  try {
+    mode = 'online';
+    gameState = 'playing';
+    if (hud) hud.show();
+    if (isMobile()) {
+      const cm = document.getElementById('controlsMobile');
+      if (cm) cm.classList.remove('hidden');
+    }
+    showScreen('game');
+  } catch (e) {
+    setMsg('Online start failed: ' + (e && e.message ? e.message : String(e)));
+  }
 }
 
 function renderLobby(summary) {
-  document.getElementById('lobbyTitle').textContent = 'Lobby - ' + summary.name;
-  const list = document.getElementById('lobbyPlayers');
-  list.innerHTML = '';
-  for (const c of summary.clients) {
-    const d = document.createElement('div');
-    d.textContent = c.name + ' - ' + c.team + (c.id === localPlayerId ? ' (you)' : '');
-    list.appendChild(d);
-  }
-  const s = summary.settings;
-  document.getElementById('lobbySettings').innerHTML =
-    `Weather: ${s.weather} &nbsp;|&nbsp; Stadium: ${s.stadium} &nbsp;|&nbsp; Kit: ${s.kit || 'home'}`;
-  const btnStart = document.getElementById('btnStart');
-  btnStart.disabled = !(localPlayerId && summary.clients.length >= 2);
+  try {
+    const title = document.getElementById('lobbyTitle');
+    if (title) title.textContent = 'Lobby - ' + (summary && summary.name || '');
+    const list = document.getElementById('lobbyPlayers');
+    if (list) {
+      list.innerHTML = '';
+      if (summary && summary.clients) {
+        for (const c of summary.clients) {
+          const d = document.createElement('div');
+          d.textContent = c.name + ' - ' + c.team + (c.id === localPlayerId ? ' (you)' : '');
+          list.appendChild(d);
+        }
+      }
+    }
+    const settingsEl = document.getElementById('lobbySettings');
+    if (settingsEl && summary && summary.settings) {
+      const s = summary.settings;
+      settingsEl.innerHTML = 'Weather: ' + s.weather + ' &nbsp;|&nbsp; Stadium: ' + s.stadium + ' &nbsp;|&nbsp; Kit: ' + (s.kit || 'home');
+    }
+    const btnStart = document.getElementById('btnStart');
+    if (btnStart) btnStart.disabled = !(localPlayerId && summary && summary.clients && summary.clients.length >= 2);
+  } catch (e) { setMsg('renderLobby error: ' + String(e)); }
 }
 
 function showScreen(name) {
-  [menuEl, lobbyEl, gameOverEl].forEach(el => el.classList.add('hidden'));
-  document.getElementById('hud').classList.add('hidden');
-  document.getElementById('controlsMobile').classList.add('hidden');
-  if (name === 'menu') menuEl.classList.remove('hidden');
-  if (name === 'lobby') lobbyEl.classList.remove('hidden');
-  if (name === 'game') {
-    document.getElementById('hud').classList.remove('hidden');
-    if (isMobile()) document.getElementById('controlsMobile').classList.remove('hidden');
-  }
-  if (name === 'gameover') gameOverEl.classList.remove('hidden');
+  try {
+    [menuEl, lobbyEl, gameOverEl].forEach(function(el) { if (el) el.classList.add('hidden'); });
+    const hudEl = document.getElementById('hud');
+    if (hudEl) hudEl.classList.add('hidden');
+    const cm = document.getElementById('controlsMobile');
+    if (cm) cm.classList.add('hidden');
+    if (name === 'menu') { if (menuEl) menuEl.classList.remove('hidden'); }
+    if (name === 'lobby') { if (lobbyEl) lobbyEl.classList.remove('hidden'); }
+    if (name === 'game') {
+      if (hudEl) hudEl.classList.remove('hidden');
+      if (isMobile()) { if (cm) cm.classList.remove('hidden'); }
+    }
+    if (name === 'gameover') { if (gameOverEl) gameOverEl.classList.remove('hidden'); }
+  } catch (e) { setMsg('showScreen error: ' + String(e)); }
 }
 
 function sendInputLoop() {
-  if (!controls || gameState !== 'playing') return;
-  const now = Date.now();
-  if (now - lastInputTime < INPUT_INTERVAL) return;
-  lastInputTime = now;
+  try {
+    if (!controls || gameState !== 'playing') return;
+    const now = Date.now();
+    if (now - lastInputTime < INPUT_INTERVAL) return;
+    lastInputTime = now;
 
-  if (mode === 'local') {
-    if (!localMatch) return;
-    localMatch.update();
-    world.update(0);
-    world.render();
-    return;
-  }
+    if (mode === 'local') {
+      if (!localMatch) return;
+      localMatch.update();
+      if (world) world.update(0);
+      if (world) world.render();
+      return;
+    }
 
-  if (!socket || !socket.connected()) return;
-  const input = controls.update();
-  netcode.setLocalPlayerId(localPlayerId);
-  const packed = netcode.makeInput(input.x, input.z, input);
-  socket.sendInput(packed);
-  applyLocalInput(input);
+    if (!socket || !socket.connected()) return;
+    const input = controls.update();
+    if (netcode) netcode.setLocalPlayerId(localPlayerId);
+    const packed = netcode ? netcode.makeInput(input.x, input.z, input) : input;
+    if (socket) socket.sendInput(packed);
+    applyLocalInput(input);
+  } catch (e) { setMsg('input loop error: ' + String(e)); }
 }
 
 function applyLocalInput(input) {
-  if (!localPlayer) return;
-  const d = localPlayer.data;
-  d.sprinting = !!input.sprint;
-  if (input.x !== 0 || input.z !== 0) { d.rx = input.x; d.rz = input.z; }
-  world.setPlayerData(localPlayerId, d);
+  try {
+    if (!localMatch || !world) return;
+    // LocalMatch handles its own input; nothing to apply to world here
+  } catch (e) {}
 }
 
 function loop() {
   requestAnimationFrame(loop);
-  if (world) {
-    sendInputLoop();
-    if (gameState === 'playing' && mode === 'online') {
-      const now = performance.now();
-      const dt = Math.min((now - (world.lastTime || now)) / 1000, 0.1);
-      world.lastTime = now;
-      world.update(dt);
+  try {
+    if (world) {
+      sendInputLoop();
+      if (gameState === 'playing' && mode === 'online') {
+        const now = performance.now();
+        const dt = Math.min((now - (world.lastTime || now)) / 1000, 0.1);
+        world.lastTime = now;
+        world.update(dt);
+      }
+      world.render();
     }
-    world.render();
-  }
+  } catch (e) { setMsg('render loop error: ' + String(e)); }
 }
 
 function connect() {
-  socket = new SocketClient(window.location.origin);
-  menu = new Menu();
+  try {
+    socket = new SocketClient(window.location.origin);
+    const menuUI = new Menu();
 
-  socket.on('connect', () => { console.log('socket connected'); });
-  socket.on('disconnect', () => { console.log('socket disconnected'); });
+    socket.on('connect', function() { console.log('socket connected'); });
+    socket.on('disconnect', function() { console.log('socket disconnected'); });
 
-  socket.on(MSG.JOIN_ROOM, ({ ok, roomId, team, name, settings }) => {
-    if (!ok) { menu.setMsg('Failed to join'); return; }
-    localPlayerId = socket.socket.id;
-    localTeam = team;
-    localName = name;
-    initWorld(settings);
-    localPlayer = world.addPlayer(localPlayerId, localTeam, localName, 0, 0, true);
-    netcode.setLocalPlayerId(localPlayerId);
-    showScreen('lobby');
-  });
+    socket.on(MSG.JOIN_ROOM, function(data) {
+      try {
+        if (!data || !data.ok) { setMsg('Failed to join room'); return; }
+        localPlayerId = socket && socket.socket ? socket.socket.id : null;
+        localTeam = data.team;
+        localName = data.name || 'Player';
+        initWorld(data.settings || {});
+        localPlayerId && netcode && netcode.setLocalPlayerId(localPlayerId);
+        world.addPlayer(localPlayerId, localTeam, localName, 0, 0, true);
+        showScreen('lobby');
+      } catch (e) { setMsg('join error: ' + String(e)); }
+    });
 
-  socket.on('syncState', (snap) => {
-    if (!netcode) return;
-    netcode.applySnapshot(snap);
-    hud.setScore(snap.score.home, snap.score.away);
-    hud.setTime(snap.time);
-    netcode.setLocalPlayerId(localPlayerId);
-    world.setBallData(snap.ball);
-    for (const p of snap.players) {
-      if (p.id === localPlayerId) continue;
-      world.setPlayerData(p.id, p);
-    }
-  });
+    socket.on('syncState', function(snap) {
+      try {
+        if (!netcode) return;
+        netcode.applySnapshot(snap);
+        if (hud) { hud.setScore(snap.score.home, snap.score.away); hud.setTime(snap.time); }
+        netcode.setLocalPlayerId(localPlayerId);
+        if (world) {
+          world.setBallData(snap.ball);
+          if (snap.players) {
+            for (const p of snap.players) {
+              if (p.id === localPlayerId) continue;
+              world.setPlayerData(p.id, p);
+            }
+          }
+        }
+      } catch (e) { setMsg('sync error: ' + String(e)); }
+    });
 
-  socket.on('goalScored', (data) => {
-    hud.setScore(data.score.home, data.score.away);
-  });
+    socket.on('goalScored', function(data) {
+      try { if (hud && data && data.score) hud.setScore(data.score.home, data.score.away); } catch (e) {}
+    });
 
-  socket.on('matchEnd', (data) => {
-    gameState = 'ended';
-    hud.hide();
-    const goScore = document.getElementById('goScore');
-    goScore.textContent = `Home ${data.score.home} - ${data.score.away}  (${data.winner})`;
-    document.getElementById('goTitle').textContent = 'Match Over';
-    gameOverEl.classList.remove('hidden');
-  });
+    socket.on('matchEnd', function(data) {
+      try {
+        gameState = 'ended';
+        if (hud) hud.hide();
+        const goScore = document.getElementById('goScore');
+        const goTitle = document.getElementById('goTitle');
+        if (goScore && data && data.score) goScore.textContent = 'Home ' + data.score.home + ' - ' + data.score.away + '  (' + (data.winner || 'draw') + ')';
+        if (goTitle) goTitle.textContent = 'Match Over';
+        if (gameOverEl) gameOverEl.classList.remove('hidden');
+      } catch (e) {}
+    });
 
-  socket.on('roomState', (summary) => {
-    renderLobby(summary);
-  });
+    socket.on('roomState', function(summary) {
+      try { renderLobby(summary); } catch (e) {}
+    });
 
-  socket.on('error', (data) => {
-    menu.setMsg(data.message || 'Error');
-  });
+    socket.on('error', function(data) {
+      try { setMsg(data && data.message ? data.message : 'Error'); } catch (e) {}
+    });
 
-  // Menu actions
-  document.getElementById('btnCreate').addEventListener('click', () => {
-    const name = document.getElementById('inpName').value || 'Player';
-    localName = name;
-    socket.join('create-' + Date.now(), name, document.getElementById('inpTeam').value);
-  });
-  document.getElementById('btnJoin').addEventListener('click', () => {
-    const name = document.getElementById('inpName').value || 'Player';
-    localName = name;
-    socket.join(document.getElementById('inpRoomId').value || 'room-1', name, document.getElementById('inpTeam').value);
-  });
-  document.getElementById('btnStart').addEventListener('click', () => {
-    socket.startMatch();
-    startOnline();
-  });
-  document.getElementById('btnLeaveLobby').addEventListener('click', () => showScreen('menu'));
-  document.getElementById('goBack').addEventListener('click', () => { showScreen('menu'); location.reload(); });
+    // Menu actions
+    const btnCreate = document.getElementById('btnCreate');
+    const btnJoin = document.getElementById('btnJoin');
+    const btnStart = document.getElementById('btnStart');
+    const btnLeave = document.getElementById('btnLeaveLobby');
+    const goBack = document.getElementById('goBack');
+    const btnLocal = document.getElementById('btnLocal');
 
-  // Local play button
-  const btnLocal = document.getElementById('btnLocal');
-  if (btnLocal) {
-    btnLocal.addEventListener('click', (e) => {
-      e.preventDefault();
+    if (btnCreate) btnCreate.addEventListener('click', function() {
+      const nameEl = document.getElementById('inpName');
+      const teamEl = document.getElementById('inpTeam');
+      localName = (nameEl && nameEl.value) || 'Player';
+      localTeam = (teamEl && teamEl.value) || 'home';
+      if (socket) socket.join('create-' + Date.now(), localName, localTeam);
+    });
+    if (btnJoin) btnJoin.addEventListener('click', function() {
+      const nameEl = document.getElementById('inpName');
+      const roomEl = document.getElementById('inpRoomId');
+      const teamEl = document.getElementById('inpTeam');
+      localName = (nameEl && nameEl.value) || 'Player';
+      localTeam = (teamEl && teamEl.value) || 'home';
+      if (socket) socket.join((roomEl && roomEl.value) || 'room-1', localName, localTeam);
+    });
+    if (btnStart) btnStart.addEventListener('click', function() {
+      if (socket) socket.startMatch();
+      startOnline();
+    });
+    if (btnLeave) btnLeave.addEventListener('click', function() { showScreen('menu'); });
+    if (goBack) goBack.addEventListener('click', function() { showScreen('menu'); location.reload(); });
+    if (btnLocal) btnLocal.addEventListener('click', function(e) {
+      if (e) e.preventDefault();
       startLocal();
     });
+
+    // Settings
+    menuUI.onSetting = function(key, value) {
+      try {
+        if (socket) socket.setSetting(key, value);
+        if (world) world.setSettings({ [key]: value });
+        if (key === 'platform') setPreferredScheme(value === 'auto' ? null : value);
+      } catch (e) {}
+    };
+    menuUI.onSetName = function(n) { localName = n; if (socket) socket.setName(n); };
+    menuUI.onSetTeam = function(t) { localTeam = t; if (socket) socket.setTeam(t); };
+
+    window.addEventListener('resize', function() { if (world) world.resize(); });
+
+    showScreen('menu');
+    loop();
+  } catch (e) {
+    setMsg('Connect failed: ' + (e && e.message ? e.message : String(e)));
+    showScreen('menu');
+    loop();
   }
-
-  // Settings
-  menu.onSetting = (key, value) => {
-    if (socket) socket.setSetting(key, value);
-    if (world) world.setSettings({ [key]: value });
-    if (key === 'platform') setPreferredScheme(value === 'auto' ? null : value);
-  };
-  menu.onSetName = (n) => { if (socket) socket.setName(n); localName = n; };
-  menu.onSetTeam = (t) => { if (socket) socket.setTeam(t); localTeam = t; };
-
-  window.addEventListener('resize', () => { if (world) world.resize(); });
-
-  showScreen('menu');
-  loop();
 }
+
+// Global error handler
+window.addEventListener('error', function(evt) {
+  setMsg('JS error: ' + (evt.message || String(evt)));
+});
+
+window.__startLocal__ = startLocal;
 
 connect();
