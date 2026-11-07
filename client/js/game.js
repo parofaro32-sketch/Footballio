@@ -1046,7 +1046,7 @@
         } finally {
           loading.hide();
         }
-      }, 100);
+      }, 600);
     } catch (e) {
       loading.hide();
       setMsg('Local match failed: ' + (e && e.message ? e.message : String(e)));
@@ -1072,7 +1072,7 @@
         } finally {
           loading.hide();
         }
-      }, 100);
+      }, 600);
     } catch (e) {
       loading.hide();
       setMsg('Online start failed: ' + (e && e.message ? e.message : String(e)));
