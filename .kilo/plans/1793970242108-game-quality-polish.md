@@ -61,13 +61,8 @@ The project has no React/build system. To run the React component as-is (JSX), w
 6. Refresh — React menu appears again immediately
 7. Browser console: no React/JSX errors
 
-## Risks
-- `@babel/standalone` is ~200KB+ and compiles JSX on the client — slower initial load, but works without build system
-- `showScreen('menu')` removes `hidden` from `#react-menu` — React content will be visible since it's mounted inside
-- When `showScreen('game')` is called, `#react-menu` gets `hidden` class — React app is hidden but still mounted (fine)
-- The React component's inline `<style>` block is scoped to `.ft-app` — no conflict with existing CSS
+## Decision — React infrastructure (resolved)
+**Option A: CDN scripts — React, ReactDOM, and `@babel/standalone`**, with the component in `<script type="text/babel">`. Runs the component exactly as provided (JSX intact), zero redesign. User confirmed via response "A".
 
-## Open questions (need user decision)
-**Q1: React infrastructure approach.** Use CDN + @babel/standalone to run the exact React JSX component (recommended, faithful to "use this component"), OR rewrite using React.createElement without Babel (smaller, faster, but not the component as provided)?
-
-**Recommended:** CDN + @babel/standalone — runs the component exactly as provided.
+## Open questions
+None. All decisions resolved.

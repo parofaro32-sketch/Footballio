@@ -8,29 +8,7 @@
 </head>
 <body>
 <div id="ui">
-  <div id="menu" class="panel">
-    <h1>11v11 FOOTBALL</h1>
-    <div class="row">
-      <label>Name <input id="inpName" value="Player"></label>
-      <label>Team <select id="inpTeam"><option value="home">Home</option><option value="away">Away</option></select></label>
-    </div>
-    <div class="row">
-      <label>Kit <select id="inpKit"><option value="home">Home</option><option value="away">Away</option></select></label>
-      <label>Weather <select id="inpWeather"><option value="clear">Clear</option><option value="rain">Rain</option><option value="snow">Snow</option></select></label>
-      <label>Stadium <select id="inpStadium"><option value="classic">Classic</option><option value="night">Night</option><option value="desert">Desert</option></select></label>
-    </div>
-    <div class="row">
-      <label>Platform <select id="inpPlatform"><option value="auto">Auto</option><option value="pc">PC</option><option value="mobile">Mobile</option></select></label>
-    </div>
-    <div class="buttons">
-      <button id="btnCreate">Create Room</button>
-      <button id="btnJoin">Join Room</button>
-      <button id="btnLocal" class="secondary" onclick="window.__startLocal__ && window.__startLocal__()">Play Local (vs Bots)</button>
-    </div>
-    <input id="inpRoomId" placeholder="Room ID (join)">
-    <div id="roomsList" class="list"></div>
-    <div id="msg" class="msg"></div>
-  </div>
+  <div id="react-menu" class="panel"></div>
 
   <div id="lobby" class="panel hidden">
     <h2 id="lobbyTitle">Lobby</h2>
@@ -73,6 +51,501 @@
 
 <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
 <script src="https://esm.sh/socket.io-client@4.7.5"></script>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <script src="/js/game.js"></script>
+<script type="text/babel">
+  const { useState } = React;
+
+  function FootballTopsMenu({ onPlayBots, onOnline, onSettings }) {
+    const [startingMatch, setStartingMatch] = useState(false);
+    const handleBots = () => {
+      if (startingMatch) return;
+      setStartingMatch(true);
+      try {
+        onPlayBots();
+      } catch (error) {
+        console.error("Failed to start bot match:", error);
+        setStartingMatch(false);
+      }
+    };
+    return (
+      <div className="ft-app">
+        <style>{`
+          .ft-app {
+            min-height: 100vh;
+            width: 100%;
+            background:
+              radial-gradient(circle at 75% 20%, rgba(45, 100, 150, 0.16), transparent 35%),
+              radial-gradient(circle at 20% 80%, rgba(30, 70, 100, 0.12), transparent 35%),
+              #070b0f;
+            color: #fff;
+            font-family:
+              Inter,
+              -apple-system,
+              BlinkMacSystemFont,
+              "Segoe UI",
+              sans-serif;
+            overflow: hidden;
+            position: relative;
+          }
+          .ft-app::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            background:
+              linear-gradient(
+                115deg,
+                transparent 0%,
+                rgba(255,255,255,0.025) 45%,
+                transparent 70%
+              );
+          }
+          .ft-nav {
+            position: relative;
+            z-index: 10;
+            height: 82px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 48px;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            background: rgba(5, 8, 11, 0.72);
+            backdrop-filter: blur(24px);
+          }
+          .ft-brand {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+          }
+          .ft-logo-mark {
+            width: 38px;
+            height: 38px;
+            border: 1px solid rgba(255,255,255,0.25);
+            border-radius: 11px;
+            display: grid;
+            place-items: center;
+            font-size: 17px;
+            font-weight: 900;
+            background: rgba(255,255,255,0.06);
+            box-shadow: inset 0 0 25px rgba(255,255,255,0.025);
+          }
+          .ft-brand-name {
+            font-size: 18px;
+            font-weight: 900;
+            letter-spacing: 0.16em;
+          }
+          .ft-brand-sub {
+            margin-top: 3px;
+            color: rgba(255,255,255,0.38);
+            font-size: 8px;
+            letter-spacing: 0.3em;
+          }
+          .ft-nav-links {
+            display: flex;
+            gap: 8px;
+          }
+          .ft-nav-button {
+            border: 0;
+            background: transparent;
+            color: rgba(255,255,255,0.5);
+            padding: 11px 17px;
+            border-radius: 9px;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            cursor: pointer;
+            transition:
+              color 180ms ease,
+              background 180ms ease,
+              transform 180ms ease;
+          }
+          .ft-nav-button:hover {
+            color: #fff;
+            background: rgba(255,255,255,0.07);
+            transform: translateY(-1px);
+          }
+          .ft-nav-button:active {
+            transform: translateY(0);
+          }
+          .ft-main {
+            position: relative;
+            z-index: 2;
+            max-width: 1500px;
+            min-height: calc(100vh - 82px);
+            margin: 0 auto;
+            padding: 54px 48px 42px;
+          }
+          .ft-hero {
+            min-height: 405px;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 28px;
+            background:
+              linear-gradient(
+                105deg,
+                rgba(8,13,18,0.98) 0%,
+                rgba(12,23,31,0.91) 52%,
+                rgba(14,31,43,0.72) 100%
+              );
+            box-shadow:
+              0 35px 100px rgba(0,0,0,0.35),
+              inset 0 1px rgba(255,255,255,0.035);
+          }
+          .ft-hero::after {
+            content: "";
+            position: absolute;
+            right: -180px;
+            top: -220px;
+            width: 600px;
+            height: 600px;
+            border-radius: 50%;
+            border: 1px solid rgba(255,255,255,0.055);
+            box-shadow:
+              0 0 0 80px rgba(255,255,255,0.018),
+              0 0 0 160px rgba(255,255,255,0.012);
+          }
+          .ft-hero-content {
+            position: relative;
+            z-index: 3;
+            max-width: 650px;
+            padding: 68px 64px;
+          }
+          .ft-kicker {
+            display: inline-flex;
+            align-items: center;
+            gap: 9px;
+            color: rgba(255,255,255,0.48);
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: 0.28em;
+          }
+          .ft-kicker-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #fff;
+            box-shadow: 0 0 12px rgba(255,255,255,0.7);
+          }
+          .ft-title {
+            margin: 18px 0 12px;
+            font-size: clamp(48px, 8vw, 96px);
+            line-height: 0.9;
+            font-weight: 950;
+            letter-spacing: -0.055em;
+          }
+          .ft-description {
+            max-width: 510px;
+            color: rgba(255,255,255,0.46);
+            line-height: 1.7;
+            font-size: 14px;
+          }
+          .ft-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 32px;
+          }
+          .ft-primary {
+            min-width: 210px;
+            height: 52px;
+            padding: 0 24px;
+            border: 0;
+            border-radius: 12px;
+            background: #fff;
+            color: #070b0f;
+            font-size: 12px;
+            font-weight: 900;
+            letter-spacing: 0.14em;
+            cursor: pointer;
+            box-shadow:
+              0 12px 35px rgba(0,0,0,0.28),
+              0 0 30px rgba(255,255,255,0.07);
+            transition:
+              transform 180ms ease,
+              box-shadow 180ms ease,
+              opacity 180ms ease;
+          }
+          .ft-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow:
+              0 18px 45px rgba(0,0,0,0.34),
+              0 0 35px rgba(255,255,255,0.11);
+          }
+          .ft-primary:active:not(:disabled) {
+            transform: translateY(1px);
+          }
+          .ft-primary:disabled {
+            cursor: wait;
+            opacity: 0.55;
+          }
+          .ft-secondary {
+            height: 52px;
+            padding: 0 24px;
+            border: 1px solid rgba(255,255,255,0.13);
+            border-radius: 12px;
+            background: rgba(255,255,255,0.045);
+            color: rgba(255,255,255,0.78);
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 0.12em;
+            cursor: pointer;
+            transition:
+              background 180ms ease,
+              border-color 180ms ease,
+              transform 180ms ease;
+          }
+          .ft-secondary:hover {
+            background: rgba(255,255,255,0.08);
+            border-color: rgba(255,255,255,0.22);
+            transform: translateY(-2px);
+          }
+          .ft-modes {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            margin-top: 18px;
+          }
+          .ft-card {
+            min-height: 165px;
+            position: relative;
+            overflow: hidden;
+            padding: 25px;
+            border: 1px solid rgba(255,255,255,0.085);
+            border-radius: 20px;
+            background: rgba(255,255,255,0.035);
+            cursor: pointer;
+            transition:
+              transform 200ms ease,
+              border-color 200ms ease,
+              background 200ms ease;
+          }
+          .ft-card:hover {
+            transform: translateY(-4px);
+            border-color: rgba(255,255,255,0.18);
+            background: rgba(255,255,255,0.06);
+          }
+          .ft-card-number {
+            color: rgba(255,255,255,0.25);
+            font-size: 10px;
+            font-weight: 900;
+            letter-spacing: 0.18em;
+          }
+          .ft-card-title {
+            margin-top: 31px;
+            font-size: 20px;
+            font-weight: 900;
+            letter-spacing: -0.02em;
+          }
+          .ft-card-text {
+            margin-top: 8px;
+            max-width: 280px;
+            color: rgba(255,255,255,0.35);
+            font-size: 12px;
+            line-height: 1.55;
+          }
+          .ft-status {
+            margin-top: 18px;
+            display: flex;
+            justify-content: space-between;
+            gap: 15px;
+            padding: 17px 20px;
+            border: 1px solid rgba(255,255,255,0.07);
+            border-radius: 16px;
+            background: rgba(255,255,255,0.025);
+            color: rgba(255,255,255,0.35);
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+          }
+          .ft-online {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+          }
+          .ft-online-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: #8fd18f;
+            box-shadow: 0 0 10px rgba(143,209,143,0.5);
+          }
+          @media (max-width: 900px) {
+            .ft-nav {
+              padding: 0 24px;
+            }
+            .ft-nav-links {
+              display: none;
+            }
+            .ft-main {
+              padding: 28px 24px;
+            }
+            .ft-hero-content {
+              padding: 48px 38px;
+            }
+            .ft-modes {
+              grid-template-columns: 1fr;
+            }
+          }
+          @media (max-width: 560px) {
+            .ft-nav {
+              height: 70px;
+              padding: 0 17px;
+            }
+            .ft-main {
+              min-height: calc(100vh - 70px);
+              padding: 18px 14px 28px;
+            }
+            .ft-hero {
+              min-height: 450px;
+              border-radius: 22px;
+            }
+            .ft-hero-content {
+              padding: 40px 24px;
+            }
+            .ft-title {
+              font-size: 56px;
+            }
+            .ft-actions {
+              flex-direction: column;
+            }
+            .ft-primary,
+            .ft-secondary {
+              width: 100%;
+            }
+            .ft-card {
+              min-height: 145px;
+            }
+            .ft-status {
+              flex-direction: column;
+            }
+          }
+        `}</style>
+        <header className="ft-nav">
+          <div className="ft-brand">
+            <div className="ft-logo-mark">FT</div>
+            <div>
+              <div className="ft-brand-name">FOOTBALL TOPS</div>
+              <div className="ft-brand-sub">
+                NEXT GENERATION FOOTBALL
+              </div>
+            </div>
+          </div>
+          <nav className="ft-nav-links">
+            <button className="ft-nav-button">HOME</button>
+            <button
+              className="ft-nav-button"
+              onClick={handleBots}
+              disabled={startingMatch}
+            >
+              PLAY
+            </button>
+            <button className="ft-nav-button">TEAMS</button>
+            <button
+              className="ft-nav-button"
+              onClick={onSettings}
+            >
+              SETTINGS
+            </button>
+          </nav>
+        </header>
+        <main className="ft-main">
+          <section className="ft-hero">
+            <div className="ft-hero-content">
+              <div className="ft-kicker">
+                <span className="ft-kicker-dot" />
+                FOOTBALL TOPS
+              </div>
+              <h1 className="ft-title">
+                PLAY
+                <br />
+                FOOTBALL.
+              </h1>
+              <p className="ft-description">
+                Experience fast, competitive football with
+                responsive controls, intelligent opponents and
+                real-time match action.
+              </p>
+              <div className="ft-actions">
+                <button
+                  className="ft-primary"
+                  onClick={handleBots}
+                  disabled={startingMatch}
+                >
+                  {startingMatch
+                    ? "STARTING MATCH..."
+                    : "PLAY AGAINST BOTS"}
+                </button>
+                <button
+                  className="ft-secondary"
+                  onClick={onOnline}
+                >
+                  ONLINE
+                </button>
+              </div>
+            </div>
+          </section>
+          <section className="ft-modes">
+            <div
+              className="ft-card"
+              onClick={handleBots}
+            >
+              <div className="ft-card-number">01</div>
+              <div className="ft-card-title">
+                PLAY AGAINST BOTS
+              </div>
+              <div className="ft-card-text">
+                Enter a full football match against AI opponents.
+              </div>
+            </div>
+            <div
+              className="ft-card"
+              onClick={onOnline}
+            >
+              <div className="ft-card-number">02</div>
+              <div className="ft-card-title">
+                ONLINE
+              </div>
+              <div className="ft-card-text">
+                Connect to online multiplayer when the existing
+                online system is available.
+              </div>
+            </div>
+            <div className="ft-card">
+              <div className="ft-card-number">03</div>
+              <div className="ft-card-title">
+                FOOTBALL TOPS
+              </div>
+              <div className="ft-card-text">
+                Next-generation browser football experience.
+              </div>
+            </div>
+          </section>
+          <div className="ft-status">
+            <div className="ft-online">
+              <span className="ft-online-dot" />
+              SYSTEM ONLINE
+            </div>
+            <div>
+              FOOTBALL TOPS • BROWSER EDITION
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  ReactDOM.render(
+    React.createElement(FootballTopsMenu, {
+      onPlayBots: window.__startLocal__,
+      onOnline: window.__startOnline__,
+      onSettings: window.__onSettings__,
+    }),
+    document.getElementById('react-menu')
+  );
+</script>
 </body>
 </html>

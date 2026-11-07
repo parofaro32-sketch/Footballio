@@ -1141,7 +1141,6 @@
   function connect() {
     try {
       socket = new SocketClient(window.location.origin);
-      var menuUI = new Menu();
 
       socket.on('connect', function() { console.log('socket connected'); });
       socket.on('disconnect', function() { console.log('socket disconnected'); });
@@ -1202,48 +1201,16 @@
         try { setMsg(data && data.message ? data.message : 'Error'); } catch (e) {}
       });
 
-      var btnCreate = document.getElementById('btnCreate');
-      var btnJoin = document.getElementById('btnJoin');
-      var btnStart = document.getElementById('btnStart');
-      var btnLeave = document.getElementById('btnLeaveLobby');
-      var goBack = document.getElementById('goBack');
-      var btnLocal = document.getElementById('btnLocal');
+      // Expose game-start callbacks to the React menu
+      window.__startOnline__ = startOnline;
 
-      if (btnCreate) btnCreate.addEventListener('click', function() {
-        var nameEl = document.getElementById('inpName');
-        var teamEl = document.getElementById('inpTeam');
-        localName = (nameEl && nameEl.value) || 'Player';
-        localTeam = (teamEl && teamEl.value) || 'home';
-        if (socket) socket.join('create-' + Date.now(), localName, localTeam);
-      });
-      if (btnJoin) btnJoin.addEventListener('click', function() {
-        var nameEl = document.getElementById('inpName');
-        var roomEl = document.getElementById('inpRoomId');
-        var teamEl = document.getElementById('inpTeam');
-        localName = (nameEl && nameEl.value) || 'Player';
-        localTeam = (teamEl && teamEl.value) || 'home';
-        if (socket) socket.join((roomEl && roomEl.value) || 'room-1', localName, localTeam);
-      });
-      if (btnStart) btnStart.addEventListener('click', function() {
-        if (socket) socket.startMatch();
-        startOnline();
-      });
-      if (btnLeave) btnLeave.addEventListener('click', function() { showScreen('menu'); });
-      if (goBack) goBack.addEventListener('click', function() { showScreen('menu'); location.reload(); });
-      if (btnLocal) btnLocal.addEventListener('click', function(e) {
-        if (e) e.preventDefault();
-        startLocal();
-      });
-
-      menuUI.onSetting = function(key, value) {
+      window.__onSettings__ = function(key, value) {
         try {
           if (socket) socket.setSetting(key, value);
           if (world) world.setSettings({ [key]: value });
           if (key === 'platform') { /* platform handled elsewhere */ }
         } catch (e) {}
       };
-      menuUI.onSetName = function(n) { localName = n; if (socket) socket.setName(n); };
-      menuUI.onSetTeam = function(t) { localTeam = t; if (socket) socket.setTeam(t); };
 
       window.addEventListener('resize', function() { if (world) world.resize(); });
 
