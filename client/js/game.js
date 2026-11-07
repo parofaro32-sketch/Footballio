@@ -955,22 +955,35 @@
     if (this.hintEl) this.hintEl.textContent = text;
   };
 
-  // ---------- Loading screen ----------
-  var Loading = function() {
+  // ---------- Startup / Loading ----------
+  var Startup = function() {
     this.el = document.getElementById('loading');
+    this.statusEl = document.getElementById('loadingStatus');
+    this.progressEl = document.getElementById('loadingProgress');
     this._forceTimer = null;
+    this._startTime = Date.now();
+    this._state = 'loading'; // loading | ready | error
+    this.show();
   };
-  Loading.prototype.show = function() {
+  Startup.prototype.show = function() {
     if (this.el) {
       this.el.classList.remove('hidden');
-      this.el.style.display = 'flex';
+      this.el.style.setProperty('display', 'flex', 'important');
     }
-    // Safety net: force-hide loading after 3s no matter what
+    // Safety net: force-hide loading after 5s no matter what
     var self = this;
     if (this._forceTimer) clearTimeout(this._forceTimer);
-    this._forceTimer = setTimeout(function() { self.hide(); }, 3000);
+    this._forceTimer = setTimeout(function() {
+      console.warn('Startup timeout: forcing transition to main menu');
+      self._state = 'ready';
+      self.hide();
+    }, 5000);
   };
-  Loading.prototype.hide = function() {
+  Startup.prototype.setStatus = function(text, pct) {
+    if (this.statusEl) this.statusEl.textContent = text;
+    if (this.progressEl && pct !== undefined) this.progressEl.style.width = pct + '%';
+  };
+  Startup.prototype.hide = function() {
     if (this.el) {
       this.el.classList.add('hidden');
       this.el.style.setProperty('display', 'none', 'important');
@@ -993,7 +1006,7 @@
   var netcode = null;
   var hud = null;
   var localMatch = null;
-  var loading = new Loading();
+  var startup = new Startup();
   var localPlayerId = null;
   var localTeam = null;
   var localName = 'Player';
@@ -1029,12 +1042,13 @@
       setMsg('');
       mode = 'local';
       gameState = 'playing';
-      loading.show();
+      startup.setStatus('Preparing match...', 50);
       setTimeout(function() {
         try {
           initWorld({ weather: 'clear', stadium: 'classic' });
           localMatch = new LocalMatch(world, controls);
           localMatch.start();
+          startup.setStatus('Almost ready...', 100);
           showScreen('game');
           if (!isMobile) requestFullscreen();
           var hint = document.getElementById('hudHint');
@@ -1044,11 +1058,11 @@
           showScreen('game');
           if (!isMobile) requestFullscreen();
         } finally {
-          loading.hide();
+          startup.hide();
         }
       }, 600);
     } catch (e) {
-      loading.hide();
+      startup.hide();
       setMsg('Local match failed: ' + (e && e.message ? e.message : String(e)));
       showScreen('menu');
     }
@@ -1058,10 +1072,11 @@
     try {
       mode = 'online';
       gameState = 'playing';
-      loading.show();
+      startup.setStatus('Connecting to server...', 50);
       setTimeout(function() {
         try {
           if (hud) hud.show();
+          startup.setStatus('Almost ready...', 100);
           showScreen('game');
           if (!isMobile) requestFullscreen();
           var hint = document.getElementById('hudHint');
@@ -1070,11 +1085,11 @@
           setMsg('Online start failed: ' + (e && e.message ? e.message : String(e)));
           showScreen('game');
         } finally {
-          loading.hide();
+          startup.hide();
         }
       }, 600);
     } catch (e) {
-      loading.hide();
+      startup.hide();
       setMsg('Online start failed: ' + (e && e.message ? e.message : String(e)));
       showScreen('menu');
     }
@@ -1108,7 +1123,7 @@
 
   function showScreen(name) {
     try {
-      if (name === 'menu') { loading.hide(); }
+      if (name === 'menu') { startup.hide(); }
       [menuEl, lobbyEl, gameOverEl].forEach(function(el) { if (el) el.classList.add('hidden'); });
       var hudEl = document.getElementById('hud');
       if (hudEl) hudEl.classList.add('hidden');
@@ -1280,12 +1295,14 @@
 
       window.addEventListener('resize', function() { if (world) world.resize(); });
 
-      // Hide loading screen on initial page load
-      loading.hide();
+      // Initialization complete - hide loading and show main menu
+      startup.setStatus('Ready', 100);
+      startup.hide();
 
       showScreen('menu');
       loop();
     } catch (e) {
+      startup.hide();
       setMsg('Connect failed: ' + (e && e.message ? e.message : String(e)));
       showScreen('menu');
       loop();
@@ -1304,7 +1321,7 @@
     localTeam = (teamEl && teamEl.value) || 'home';
     if (socket) socket.join(roomId, localName, localTeam);
   };
-  window.__forceHideLoading__ = function() { loading.hide(); showScreen('game'); };
+  window.__forceHideLoading__ = function() { startup.hide(); showScreen('game'); };
 
   connect();
 
