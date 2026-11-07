@@ -962,18 +962,9 @@
     this.progressEl = document.getElementById('loadingBarFill');
     this.pctEl = document.getElementById('loadingPct');
     this.onComplete = onComplete;
-    this._completedRef = false;
     this._cancelled = false;
+    this._completedRef = false;
     this._startTimer = null;
-    this._steps = [
-      [10, "Initializing Football Tops..."],
-      [25, "Starting game engine..."],
-      [40, "Loading game systems..."],
-      [55, "Preparing players..."],
-      [70, "Preparing football..."],
-      [85, "Preparing stadium..."],
-      [100, "Ready!"]
-    ];
 
     var self = this;
     this.show();
@@ -985,7 +976,6 @@
       this.el.style.setProperty('display', 'flex', 'important');
       this.el.classList.remove('hidden');
     }
-    this.setStatus(this._steps[0][1], this._steps[0][0]);
   };
 
   Startup.prototype.hide = function() {
@@ -1000,22 +990,23 @@
     if (this._startTimer) { clearTimeout(this._startTimer); this._startTimer = null; }
   };
 
-  Startup.prototype.setStatus = function(text, pct) {
-    if (this.statusEl) this.statusEl.textContent = text;
-    if (this.progressEl && pct !== undefined) {
-      this.progressEl.style.width = pct + '%';
-    }
-    if (this.pctEl) this.pctEl.textContent = pct + '%';
-  };
-
   Startup.prototype.start = function() {
     var self = this;
-    var stepIndex = 0;
-    var steps = self._steps;
+    var steps = [
+      { value: 10, text: "Initializing Football Tops..." },
+      { value: 25, text: "Starting game engine..." },
+      { value: 40, text: "Loading game systems..." },
+      { value: 55, text: "Preparing players..." },
+      { value: 70, text: "Preparing football..." },
+      { value: 85, text: "Preparing stadium..." },
+      { value: 100, text: "Ready!" }
+    ];
+    var index = 0;
 
-    var advance = function() {
+    var updateProgress = function() {
       if (self._cancelled) return;
-      if (stepIndex >= steps.length) {
+      var step = steps[index];
+      if (!step) {
         if (!self._completedRef) {
           self._completedRef = true;
           window.setTimeout(function() {
@@ -1024,18 +1015,20 @@
         }
         return;
       }
-      var nextProgress = steps[stepIndex][0];
-      var nextStatus = steps[stepIndex][1];
-      stepIndex += 1;
-      self.setStatus(nextStatus, nextProgress);
-      if (nextProgress < 100) {
-        self._startTimer = window.setTimeout(advance, 350);
-      } else {
-        self._startTimer = window.setTimeout(advance, 300);
+      if (self.progressEl) {
+        self.progressEl.style.width = step.value + '%';
       }
+      if (self.pctEl) {
+        self.pctEl.textContent = step.value + '%';
+      }
+      if (self.statusEl) {
+        self.statusEl.textContent = step.text;
+      }
+      index += 1;
+      self._startTimer = window.setTimeout(updateProgress, 350);
     };
 
-    self._startTimer = window.setTimeout(advance, 100);
+    self._startTimer = window.setTimeout(updateProgress, 100);
   };
 
   // ---------- Main ----------
