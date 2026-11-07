@@ -962,19 +962,18 @@
     this.progressEl = document.getElementById('loadingBarFill');
     this.pctEl = document.getElementById('loadingPct');
     this.onComplete = onComplete;
-    this._interval = null;
-    this._timeout = null;
-    this._index = 0;
+    this._completedRef = false;
+    this._cancelled = false;
+    this._startTimer = null;
     this._steps = [
-      { progress: 10, status: 'Initializing Football Tops...' },
-      { progress: 25, status: 'Starting game engine...' },
-      { progress: 40, status: 'Loading game systems...' },
-      { progress: 55, status: 'Preparing players...' },
-      { progress: 70, status: 'Preparing football...' },
-      { progress: 85, status: 'Preparing stadium...' },
-      { progress: 100, status: 'Ready!' }
+      [10, "Initializing Football Tops..."],
+      [25, "Starting game engine..."],
+      [40, "Loading game systems..."],
+      [55, "Preparing players..."],
+      [70, "Preparing football..."],
+      [85, "Preparing stadium..."],
+      [100, "Ready!"]
     ];
-    this._started = false;
 
     var self = this;
     this.show();
@@ -986,7 +985,7 @@
       this.el.style.setProperty('display', 'flex', 'important');
       this.el.classList.remove('hidden');
     }
-    this.setStatus(this._steps[0].status, this._steps[0].progress);
+    this.setStatus(this._steps[0][1], this._steps[0][0]);
   };
 
   Startup.prototype.hide = function() {
@@ -998,8 +997,7 @@
   };
 
   Startup.prototype._clearTimers = function() {
-    if (this._interval) { clearInterval(this._interval); this._interval = null; }
-    if (this._timeout) { clearTimeout(this._timeout); this._timeout = null; }
+    if (this._startTimer) { clearTimeout(this._startTimer); this._startTimer = null; }
   };
 
   Startup.prototype.setStatus = function(text, pct) {
@@ -1011,23 +1009,33 @@
   };
 
   Startup.prototype.start = function() {
-    if (this._started) return;
-    this._started = true;
     var self = this;
+    var stepIndex = 0;
+    var steps = self._steps;
 
-    this._interval = window.setInterval(function() {
-      if (self._index >= self._steps.length) {
-        window.clearInterval(self._interval);
-        self._interval = null;
-        window.setTimeout(function() {
-          if (self.onComplete) self.onComplete();
-        }, 500);
+    var advance = function() {
+      if (self._cancelled) return;
+      if (stepIndex >= steps.length) {
+        if (!self._completedRef) {
+          self._completedRef = true;
+          window.setTimeout(function() {
+            if (!self._cancelled && self.onComplete) self.onComplete();
+          }, 300);
+        }
         return;
       }
-      var step = self._steps[self._index];
-      self.setStatus(step.status, step.progress);
-      self._index++;
-    }, 400);
+      var nextProgress = steps[stepIndex][0];
+      var nextStatus = steps[stepIndex][1];
+      stepIndex += 1;
+      self.setStatus(nextStatus, nextProgress);
+      if (nextProgress < 100) {
+        self._startTimer = window.setTimeout(advance, 350);
+      } else {
+        self._startTimer = window.setTimeout(advance, 300);
+      }
+    };
+
+    self._startTimer = window.setTimeout(advance, 100);
   };
 
   // ---------- Main ----------
