@@ -956,39 +956,138 @@
   };
 
   // ---------- Startup / Loading ----------
-  var Startup = function() {
-    this.el = document.getElementById('loading');
+  var Startup = function(onComplete) {
+    this.el = document.getElementById('loading-screen');
     this.statusEl = document.getElementById('loadingStatus');
-    this.progressEl = document.getElementById('loadingProgress');
-    this._forceTimer = null;
-    this._startTime = Date.now();
+    this.progressEl = document.getElementById('loadingBarFill');
+    this.pctEl = document.getElementById('loadingPct');
+    this.errorEl = document.getElementById('loadingError');
+    this.errorMsgEl = document.getElementById('loadingErrorMsg');
+    this.retryBtn = document.getElementById('loadingRetryBtn');
+    this.onComplete = onComplete;
+    this._cancelled = false;
     this._state = 'loading'; // loading | ready | error
+    this._timer = null;
+    this._forceTimer = null;
+
+    var self = this;
+    this.retryBtn.addEventListener('click', function() {
+      self.retry();
+    });
+
     this.show();
   };
+
   Startup.prototype.show = function() {
     if (this.el) {
       this.el.classList.remove('hidden');
+      this.el.classList.remove('loading-screen--fade-out');
       this.el.style.setProperty('display', 'flex', 'important');
     }
-    // Safety net: force-hide loading after 5s no matter what
-    var self = this;
-    if (this._forceTimer) clearTimeout(this._forceTimer);
-    this._forceTimer = setTimeout(function() {
-      console.warn('Startup timeout: forcing transition to main menu');
-      self._state = 'ready';
-      self.hide();
-    }, 5000);
+    this._cancelled = false;
+    this._state = 'loading';
+    if (this.errorEl) this.errorEl.style.display = 'none';
+    this.setStatus('Initializing Football Tops...', 0);
   };
-  Startup.prototype.setStatus = function(text, pct) {
-    if (this.statusEl) this.statusEl.textContent = text;
-    if (this.progressEl && pct !== undefined) this.progressEl.style.width = pct + '%';
-  };
+
   Startup.prototype.hide = function() {
     if (this.el) {
       this.el.classList.add('hidden');
       this.el.style.setProperty('display', 'none', 'important');
     }
+    this._clearTimers();
+  };
+
+  Startup.prototype._clearTimers = function() {
+    if (this._timer) { clearTimeout(this._timer); this._timer = null; }
     if (this._forceTimer) { clearTimeout(this._forceTimer); this._forceTimer = null; }
+  };
+
+  Startup.prototype.setStatus = function(text, pct) {
+    if (this.statusEl) this.statusEl.textContent = text;
+    if (this.progressEl && pct !== undefined) {
+      this.progressEl.style.width = pct + '%';
+    }
+    if (this.pctEl) this.pctEl.textContent = pct + '%';
+  };
+
+  Startup.prototype.start = function() {
+    var self = this;
+    var steps = [
+      { progress: 15, status: 'Starting game engine...' },
+      { progress: 30, status: 'Loading game systems...' },
+      { progress: 45, status: 'Preparing players...' },
+      { progress: 60, status: 'Preparing football...' },
+      { progress: 75, status: 'Preparing stadium...' },
+      { progress: 90, status: 'Finalizing game...' },
+      { progress: 100, status: 'Ready!' }
+    ];
+
+    var run = function(index) {
+      if (self._cancelled || self._state !== 'loading') return;
+      if (index >= steps.length) {
+        self._timer = setTimeout(function() {
+          if (self._cancelled || self._state !== 'loading') return;
+          self.setFadeOut();
+        }, 350);
+        return;
+      }
+      var step = steps[index];
+      self.setStatus(step.status, step.progress);
+      self._timer = setTimeout(function() {
+        run(index + 1);
+      }, 250);
+    };
+
+    run(0);
+
+    // Safety net: never get stuck
+    this._forceTimer = setTimeout(function() {
+      if (self._state === 'loading') {
+        console.warn('Startup timeout: forcing transition to main menu');
+        self._state = 'ready';
+        self.complete();
+      }
+    }, 5000);
+  };
+
+  Startup.prototype.setFadeOut = function() {
+    if (this._cancelled || this._state !== 'loading') return;
+    if (this.el) {
+      this.el.classList.add('loading-screen--fade-out');
+    }
+    var self = this;
+    this._timer = setTimeout(function() {
+      if (self._cancelled) return;
+      self._state = 'ready';
+      self.hide();
+      if (self.onComplete) self.onComplete();
+    }, 500);
+  };
+
+  Startup.prototype.complete = function() {
+    this._state = 'ready';
+    this.hide();
+    if (this.onComplete) this.onComplete();
+  };
+
+  Startup.prototype.error = function(msg) {
+    this._state = 'error';
+    this._clearTimers();
+    if (this.el) {
+      this.el.classList.remove('loading-screen--fade-out');
+    }
+    if (this.errorEl) this.errorEl.style.display = 'flex';
+    if (this.errorMsgEl) this.errorMsgEl.textContent = msg || 'Initialization failed.';
+    this.setStatus('Error', 0);
+  };
+
+  Startup.prototype.retry = function() {
+    this._state = 'loading';
+    this._clearTimers();
+    if (this.errorEl) this.errorEl.style.display = 'none';
+    this.show();
+    this.start();
   };
 
   // ---------- Main ----------
@@ -1006,7 +1105,7 @@
   var netcode = null;
   var hud = null;
   var localMatch = null;
-  var startup = new Startup();
+  var startup = null;
   var localPlayerId = null;
   var localTeam = null;
   var localName = 'Player';
@@ -1042,13 +1141,11 @@
       setMsg('');
       mode = 'local';
       gameState = 'playing';
-      startup.setStatus('Preparing match...', 50);
       setTimeout(function() {
         try {
           initWorld({ weather: 'clear', stadium: 'classic' });
           localMatch = new LocalMatch(world, controls);
           localMatch.start();
-          startup.setStatus('Almost ready...', 100);
           showScreen('game');
           if (!isMobile) requestFullscreen();
           var hint = document.getElementById('hudHint');
@@ -1057,12 +1154,9 @@
           setMsg('Local match failed: ' + (e && e.message ? e.message : String(e)));
           showScreen('game');
           if (!isMobile) requestFullscreen();
-        } finally {
-          startup.hide();
         }
-      }, 600);
+      }, 100);
     } catch (e) {
-      startup.hide();
       setMsg('Local match failed: ' + (e && e.message ? e.message : String(e)));
       showScreen('menu');
     }
@@ -1072,11 +1166,9 @@
     try {
       mode = 'online';
       gameState = 'playing';
-      startup.setStatus('Connecting to server...', 50);
       setTimeout(function() {
         try {
           if (hud) hud.show();
-          startup.setStatus('Almost ready...', 100);
           showScreen('game');
           if (!isMobile) requestFullscreen();
           var hint = document.getElementById('hudHint');
@@ -1084,12 +1176,9 @@
         } catch (e) {
           setMsg('Online start failed: ' + (e && e.message ? e.message : String(e)));
           showScreen('game');
-        } finally {
-          startup.hide();
         }
-      }, 600);
+      }, 100);
     } catch (e) {
-      startup.hide();
       setMsg('Online start failed: ' + (e && e.message ? e.message : String(e)));
       showScreen('menu');
     }
@@ -1295,15 +1384,19 @@
 
       window.addEventListener('resize', function() { if (world) world.resize(); });
 
-      // Initialization complete - hide loading and show main menu
-      startup.setStatus('Ready', 100);
-      startup.hide();
+      // Create and start loading screen
+      startup = new Startup(function() {
+        showScreen('menu');
+        loop();
+      });
+      startup.start();
 
-      showScreen('menu');
-      loop();
     } catch (e) {
-      startup.hide();
-      setMsg('Connect failed: ' + (e && e.message ? e.message : String(e)));
+      if (startup) {
+        startup.error('Connect failed: ' + (e && e.message ? e.message : String(e)));
+      } else {
+        setMsg('Connect failed: ' + (e && e.message ? e.message : String(e)));
+      }
       showScreen('menu');
       loop();
     }

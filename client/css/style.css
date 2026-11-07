@@ -4,14 +4,182 @@ body { user-select: none; -webkit-user-select: none; }
 #canvas { position: absolute; inset: 0; display: block; background: #0b1a0f; }
 
 /* Loading screen */
-#loading { position: absolute; inset: 0; background: #050a08; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 60; pointer-events: none; }
-#loading.hidden { display: none !important; }
-#loading .spinner { width: 56px; height: 56px; border: 4px solid rgba(74,144,226,0.2); border-top-color: #4a90e2; border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 24px; }
-@keyframes spin { to { transform: rotate(360deg); } }
-#loading .title { font-size: 32px; font-weight: 900; letter-spacing: 4px; text-transform: uppercase; color: #fff; margin-bottom: 8px; text-shadow: 0 0 30px rgba(74,144,226,0.5); }
-#loading .status { font-size: 15px; letter-spacing: 1px; text-transform: uppercase; color: #4a90e2; margin-bottom: 32px; text-shadow: 0 0 12px rgba(74,144,226,0.4); }
-#loading .progress-bar { width: 320px; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; }
-#loading .progress-fill { width: 0%; height: 100%; background: #4a90e2; transition: width 0.3s ease; box-shadow: 0 0 12px rgba(74,144,226,0.6); }
+.loading-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 999999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at center, #17252b 0%, #090d10 55%, #050608 100%);
+  opacity: 1;
+  transition: opacity 500ms ease;
+}
+.loading-screen--fade-out {
+  opacity: 0;
+  pointer-events: none;
+}
+.loading-background {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.stadium-glow {
+  position: absolute;
+  width: 700px;
+  height: 700px;
+  border-radius: 50%;
+  filter: blur(90px);
+  opacity: 0.12;
+  background: #ffffff;
+  animation: stadiumPulse 4s ease-in-out infinite;
+}
+.stadium-glow-1 {
+  top: -350px;
+  left: -250px;
+}
+.stadium-glow-2 {
+  bottom: -400px;
+  right: -250px;
+  animation-delay: 1.5s;
+}
+.pitch-lines {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(1100px, 90vw);
+  height: min(650px, 70vh);
+  transform: translate(-50%, -50%);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 30px;
+  box-shadow:
+    inset 0 0 100px rgba(255,255,255,0.025),
+    0 0 100px rgba(255,255,255,0.02);
+}
+.loading-content {
+  position: relative;
+  z-index: 2;
+  width: min(620px, 86vw);
+  text-align: center;
+}
+.brand-title {
+  font-size: clamp(42px, 9vw, 88px);
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  color: white;
+  line-height: 1;
+  text-shadow:
+    0 0 30px rgba(255,255,255,0.12);
+}
+.brand-subtitle {
+  margin-top: 12px;
+  font-size: 12px;
+  letter-spacing: 0.45em;
+  color: rgba(255,255,255,0.48);
+}
+.loading-section {
+  margin-top: 90px;
+}
+.loading-status {
+  min-height: 20px;
+  margin-bottom: 14px;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  color: rgba(255,255,255,0.7);
+}
+.loading-bar {
+  width: 100%;
+  height: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.1);
+}
+.loading-bar-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    #ffffff 0%,
+    #b9c8ce 50%,
+    #ffffff 100%
+  );
+  box-shadow: 0 0 18px rgba(255,255,255,0.35);
+  transition: width 250ms ease;
+}
+.loading-bottom {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 10px;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  color: rgba(255,255,255,0.32);
+}
+@keyframes stadiumPulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.10;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 0.16;
+  }
+}
+@media (max-width: 600px) {
+  .brand-title {
+    letter-spacing: 0.07em;
+  }
+  .brand-subtitle {
+    font-size: 9px;
+    letter-spacing: 0.3em;
+  }
+  .loading-section {
+    margin-top: 60px;
+  }
+}
+
+/* Loading error state */
+.loading-error {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  text-align: center;
+  padding: 40px 20px;
+}
+.loading-error.hidden {
+  display: none !important;
+}
+.error-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #ff6b6b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.error-message {
+  font-size: 13px;
+  color: rgba(255,255,255,0.7);
+  max-width: 400px;
+  line-height: 1.5;
+}
+.btn-retry {
+  background: linear-gradient(135deg, #4a90e2, #357abd);
+  border: none;
+  border-radius: 8px;
+  padding: 12px 28px;
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  box-shadow: 0 4px 12px rgba(74,144,226,0.35);
+}
+.btn-retry:hover {
+  background: linear-gradient(135deg, #5ba0f2, #4a90e2);
+}
 
 /* UI overlay */
 #ui { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 10; pointer-events: auto; }
