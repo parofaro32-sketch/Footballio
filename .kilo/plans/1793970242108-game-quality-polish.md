@@ -1,73 +1,56 @@
-# Football Tops — Loading Screen 0% Fix Plan
+# Football Tops — Remove Loading Screen
 
 ## Context
-Repo: `parofaro32-sketch/Footballio`, branch `kilo/bubbly-crystal-22y`. Client is vanilla JavaScript (classic `<script>` tags, no React, no build system). The loading screen HTML exists in `client/index.html`, CSS in `client/css/style.css`, and JS logic in `client/js/game.js` (`Startup` class).
+Repo: `parofaro32-sketch/Footballio`, branch `kilo/bubbly-crystal-22y`. Client is vanilla JavaScript (`client/js/game.js`, no React/build system).
 
 ## Problem
-The loading screen progress is permanently stuck at 0%. The current `Startup.start()` uses `setInterval` at 400ms for all steps. The user wants the exact logic from their React component translated to vanilla JS:
-- Steps: 10 → 25 → 40 → 55 → 70 → 85 → 100
-- Recursive `setTimeout` (not `setInterval`)
-- 350ms between steps, 300ms at 100% before `onComplete`
-- `completedRef` equivalent to ensure `onComplete` fires exactly once
-- Async start: `setTimeout(advance, 100)` after mount
+The loading screen (`#loading-screen`) is permanently stuck at 0% and has caused repeated issues across many fix attempts. User wants it removed entirely.
 
-## Files affected (only)
-- `client/js/game.js` — `Startup` class `start()` method and constructor
+## Goal
+Startup flow: `APP START → EXISTING MAIN MENU` (no loading screen in between).
+
+## Files affected
+
+### `client/index.html`
+1. Remove the `<div id="loading-screen">...</div>` block (lines 10-37, including the nested `loadingError` div).
+2. Remove `hidden` class from `<div id="menu" class="panel hidden">` → `<div id="menu" class="panel">` so the main menu is visible immediately on page load.
+
+### `client/js/game.js`
+1. Remove the entire `Startup` class (lines 958-1037 approximately): constructor, `show`, `hide`, `_clearTimers`, `start`.
+2. Remove `var startup = null;` variable declaration.
+3. In `connect()`:
+   - Remove `startup = new Startup(function() { ... })` and `startup.start()`.
+   - Replace with direct `showScreen('menu'); loop();` after socket setup.
+   - Update the `catch` block: remove `if (startup) { startup.hide(); }`, keep `setMsg(...)`, `showScreen('menu')`, `loop()`.
+4. Remove `window.__forceHideLoading__` (references `startup.hide()`).
+5. Remove `setStatus` method references (already part of Startup class removal).
 
 ## Files NOT to touch
-- `client/index.html` — loading HTML stays as-is
-- `client/css/style.css` — loading CSS stays as-is
-- All gameplay, Three.js, Socket.IO, multiplayer, AI, menu, routing files — untouched
+- `client/css/style.css` — loading CSS can remain (unused CSS is harmless) or be left; user said remove only necessary code.
+- `client/js/game.js` gameplay code: `PCControls`, `MobileControls`, `Weather`, `Pitch`, `Ball`, `Player`, `World`, `LocalMatch`, `Netcode`, `SocketClient`, `MSG`, `Menu`, `HUD`, `renderLobby`, `showScreen`, `sendInputLoop`, `loop`, `initWorld`, `startLocal`, `startOnline`, `requestFullscreen` — all untouched.
+- All Three.js, Socket.IO, gameplay, AI, multiplayer, stadium, controls, routing code — untouched.
 
-## Implementation plan
+## Implementation plan (ordered tasks)
+1. Edit `client/index.html`: delete `<div id="loading-screen">...</div>` block (lines 10-37).
+2. Edit `client/index.html`: change `<div id="menu" class="panel hidden">` → `<div id="menu" class="panel">`.
+3. Edit `client/js/game.js`: delete `Startup` class (constructor + all prototype methods).
+4. Edit `client/js/game.js`: remove `var startup = null;` declaration.
+5. Edit `client/js/game.js`: in `connect()`, replace `startup = new Startup(...) + startup.start()` with direct `showScreen('menu'); loop();`.
+6. Edit `client/js/game.js`: update `connect()` catch block to remove `startup.hide()` reference.
+7. Edit `client/js/game.js`: remove `window.__forceHideLoading__` assignment.
+8. Run `node --check client/js/game.js` to verify syntax.
+9. Commit and push.
 
-### 1. Update `Startup` constructor (`client/js/game.js:958-982`)
-Replace constructor body to match React component structure:
-- Add `this._completedRef = false` equivalent (boolean flag)
-- Add `this._cancelled = false`
-- Add `this._startTimeout = null`
-- Keep existing element refs (`el`, `statusEl`, `progressEl`, `pctEl`, `onComplete`)
-- Remove `_interval`, `_timeout`, `_started` (replaced by `_cancelled` and recursive timeout pattern)
-- Call `this.show()` then async-start via `setTimeout(advance, 100)`
-
-### 2. Replace `Startup.prototype.start` (`client/js/game.js:1013-1031`)
-Replace `setInterval`-based logic with recursive `setTimeout` matching React component exactly:
-
-```
-steps = [[10, "Initializing Football Tops..."], [25, "Starting game engine..."], [40, "Loading game systems..."], [55, "Preparing players..."], [70, "Preparing football..."], [85, "Preparing stadium..."], [100, "Ready!"]]
-stepIndex = 0
-advance() {
-  if (cancelled) return
-  if (stepIndex >= steps.length) {
-    if (!completedRef) {
-      completedRef = true
-      setTimeout(() => { if (!cancelled) onComplete() }, 300)
-    }
-    return
-  }
-  [nextProgress, nextStatus] = steps[stepIndex]
-  stepIndex += 1
-  setProgress(nextProgress)
-  setStatus(nextStatus)
-  if (nextProgress < 100) setTimeout(advance, 350)
-  else setTimeout(advance, 300)
-}
-startTimer = setTimeout(advance, 100)
-return () => { cancelled = true; clearTimeout(startTimer) }
-```
-
-### 3. Preserve existing integration
-`connect()` creates `startup = new Startup(onComplete)` where `onComplete` calls `showScreen('menu')` and `loop()`. This stays unchanged.
-
-### 4. Validation
-- `node --check client/js/game.js` — no syntax errors
-- Progress visibly changes: 0% → 10% → 25% → 40% → 55% → 70% → 85% → 100%
-- At 100%: `onComplete()` fires once → main menu appears
-- No errors in browser console
+## Validation steps
+1. `node --check client/js/game.js` passes.
+2. Open `http://localhost:3000` (or `node server/index.js`) — main menu appears immediately, no loading screen.
+3. Refresh — main menu appears immediately again.
+4. Browser console: no startup errors referencing `startup` or `loading-screen`.
 
 ## Risks
-- Project is vanilla JS, not React — must translate React hooks (`useRef`, `useState`, `useEffect`) to vanilla JS equivalents (instance properties, closures)
-- Element references (`loadingStatus`, `loadingBarFill`, `loadingPct`) must exist in DOM at construction time — they do in `client/index.html`
+- `setMsg` writes to `#msg` element inside the menu — menu must be visible for errors to show (it will be, since menu is no longer hidden).
+- `showScreen('menu')` already handles removing `hidden` from menu — this is the existing, tested path.
+- `loop()` starts the render loop — canvas will render even on menu screen (background pitch), which is existing behavior when menu is shown.
 
 ## Open questions
-None. The user provided exact code and wants it applied with minimal changes.
+None. The user explicitly requested removing only the loading screen with no other changes.

@@ -955,82 +955,6 @@
     if (this.hintEl) this.hintEl.textContent = text;
   };
 
-  // ---------- Startup / Loading ----------
-  var Startup = function(onComplete) {
-    this.el = document.getElementById('loading-screen');
-    this.statusEl = document.getElementById('loadingStatus');
-    this.progressEl = document.getElementById('loadingBarFill');
-    this.pctEl = document.getElementById('loadingPct');
-    this.onComplete = onComplete;
-    this._cancelled = false;
-    this._completedRef = false;
-    this._startTimer = null;
-
-    var self = this;
-    this.show();
-    this.start();
-  };
-
-  Startup.prototype.show = function() {
-    if (this.el) {
-      this.el.style.setProperty('display', 'flex', 'important');
-      this.el.classList.remove('hidden');
-    }
-  };
-
-  Startup.prototype.hide = function() {
-    if (this.el) {
-      this.el.style.setProperty('display', 'none', 'important');
-      this.el.classList.add('hidden');
-    }
-    this._clearTimers();
-  };
-
-  Startup.prototype._clearTimers = function() {
-    if (this._startTimer) { clearTimeout(this._startTimer); this._startTimer = null; }
-  };
-
-  Startup.prototype.start = function() {
-    var self = this;
-    var steps = [
-      { value: 10, text: "Initializing Football Tops..." },
-      { value: 25, text: "Starting game engine..." },
-      { value: 40, text: "Loading game systems..." },
-      { value: 55, text: "Preparing players..." },
-      { value: 70, text: "Preparing football..." },
-      { value: 85, text: "Preparing stadium..." },
-      { value: 100, text: "Ready!" }
-    ];
-    var index = 0;
-
-    var updateProgress = function() {
-      if (self._cancelled) return;
-      var step = steps[index];
-      if (!step) {
-        if (!self._completedRef) {
-          self._completedRef = true;
-          window.setTimeout(function() {
-            if (!self._cancelled && self.onComplete) self.onComplete();
-          }, 300);
-        }
-        return;
-      }
-      if (self.progressEl) {
-        self.progressEl.style.width = step.value + '%';
-      }
-      if (self.pctEl) {
-        self.pctEl.textContent = step.value + '%';
-      }
-      if (self.statusEl) {
-        self.statusEl.textContent = step.text;
-      }
-      index += 1;
-      self._startTimer = window.setTimeout(updateProgress, 350);
-    };
-
-    self._startTimer = window.setTimeout(updateProgress, 100);
-  };
-
   // ---------- Main ----------
   var canvas = document.getElementById('canvas');
   var msgEl = document.getElementById('msg');
@@ -1046,7 +970,6 @@
   var netcode = null;
   var hud = null;
   var localMatch = null;
-  var startup = null;
   var localPlayerId = null;
   var localTeam = null;
   var localName = 'Player';
@@ -1153,7 +1076,6 @@
 
   function showScreen(name) {
     try {
-      if (name === 'menu') { startup.hide(); }
       [menuEl, lobbyEl, gameOverEl].forEach(function(el) { if (el) el.classList.add('hidden'); });
       var hudEl = document.getElementById('hud');
       if (hudEl) hudEl.classList.add('hidden');
@@ -1325,17 +1247,9 @@
 
       window.addEventListener('resize', function() { if (world) world.resize(); });
 
-      // Create and start loading screen
-      startup = new Startup(function() {
-        showScreen('menu');
-        loop();
-      });
-      startup.start();
-
+      showScreen('menu');
+      loop();
     } catch (e) {
-      if (startup) {
-        startup.hide();
-      }
       setMsg('Connect failed: ' + (e && e.message ? e.message : String(e)));
       showScreen('menu');
       loop();
@@ -1354,7 +1268,6 @@
     localTeam = (teamEl && teamEl.value) || 'home';
     if (socket) socket.join(roomId, localName, localTeam);
   };
-  window.__forceHideLoading__ = function() { startup.hide(); showScreen('game'); };
 
   connect();
 
