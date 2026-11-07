@@ -1,56 +1,73 @@
-# Football Tops — Remove Loading Screen
+# Football Tops — React Main Menu Integration
 
 ## Context
-Repo: `parofaro32-sketch/Footballio`, branch `kilo/bubbly-crystal-22y`. Client is vanilla JavaScript (`client/js/game.js`, no React/build system).
+Repo: `parofaro32-sketch/Footballio`, branch `kilo/bubbly-crystal-22y`. Client is **vanilla JavaScript** (classic `<script>` tags, no React, no build system, no JSX transform). Project uses CDN scripts (Three.js via unpkg, socket.io-client via esm.sh).
 
 ## Problem
-The loading screen (`#loading-screen`) is permanently stuck at 0% and has caused repeated issues across many fix attempts. User wants it removed entirely.
+User wants the provided React `FootballTopsMenu` component as the new main menu, replacing the existing vanilla JS menu (`<div id="menu">`). The component must connect `onPlayBots` to the existing `startLocal()` function (bot match), `onOnline` to `startOnline()`, and `onSettings` to the existing settings handler.
 
-## Goal
-Startup flow: `APP START → EXISTING MAIN MENU` (no loading screen in between).
+## Critical Decision — React Infrastructure
+The project has no React/build system. To run the React component as-is (JSX), we need React + ReactDOM + a JSX transform in the browser.
+
+**Recommended:** Add React, ReactDOM, and `@babel/standalone` via CDN script tags. Put the component in a `<script type="text/babel">` block. This runs the exact React component with zero redesign.
+
+**Alternative:** Rewrite the component using `React.createElement` (no JSX, no Babel). Same component tree, different syntax. Smaller, faster, but not "the component" as provided.
 
 ## Files affected
 
 ### `client/index.html`
-1. Remove the `<div id="loading-screen">...</div>` block (lines 10-37, including the nested `loadingError` div).
-2. Remove `hidden` class from `<div id="menu" class="panel hidden">` → `<div id="menu" class="panel">` so the main menu is visible immediately on page load.
+1. Add CDN script tags: React, ReactDOM, `@babel/standalone`
+2. Replace `<div id="menu" class="panel">...</div>` block (lines 11-33) with `<div id="react-menu" class="panel"></div>` mount point
+3. Add `<script type="text/babel">` block with `FootballTopsMenu` component + `ReactDOM.render` into `#react-menu`
+4. Keep `<div id="lobby">`, `<div id="hud">`, `<div id="controlsMobile">`, `<div id="gameOver">` unchanged
 
 ### `client/js/game.js`
-1. Remove the entire `Startup` class (lines 958-1037 approximately): constructor, `show`, `hide`, `_clearTimers`, `start`.
-2. Remove `var startup = null;` variable declaration.
-3. In `connect()`:
-   - Remove `startup = new Startup(function() { ... })` and `startup.start()`.
-   - Replace with direct `showScreen('menu'); loop();` after socket setup.
-   - Update the `catch` block: remove `if (startup) { startup.hide(); }`, keep `setMsg(...)`, `showScreen('menu')`, `loop()`.
-4. Remove `window.__forceHideLoading__` (references `startup.hide()`).
-5. Remove `setStatus` method references (already part of Startup class removal).
+1. In `connect()`: after socket setup, mount React menu into `#react-menu` with:
+   - `onPlayBots` → `startLocal` (existing bot match function, line ~1003)
+   - `onOnline` → `startOnline` (existing online match function, line ~1020)
+   - `onSettings` → settings handler (existing `menuUI.onSetting`, line ~1238)
+2. Remove the old `btnCreate`, `btnJoin`, `btnStart`, `btnLeave`, `btnLocal`, `goBack` event listeners (lines ~1205-1246) — replaced by React buttons
+3. Keep `showScreen('menu')` / `showScreen('game')` / `showScreen('lobby')` — React menu mounts inside `#menu` area, `showScreen('menu')` will reveal it
 
-## Files NOT to touch
-- `client/css/style.css` — loading CSS can remain (unused CSS is harmless) or be left; user said remove only necessary code.
-- `client/js/game.js` gameplay code: `PCControls`, `MobileControls`, `Weather`, `Pitch`, `Ball`, `Player`, `World`, `LocalMatch`, `Netcode`, `SocketClient`, `MSG`, `Menu`, `HUD`, `renderLobby`, `showScreen`, `sendInputLoop`, `loop`, `initWorld`, `startLocal`, `startOnline`, `requestFullscreen` — all untouched.
-- All Three.js, Socket.IO, gameplay, AI, multiplayer, stadium, controls, routing code — untouched.
+### `client/css/style.css`
+- Keep existing loading CSS (unused but harmless)
+- React component uses inline `<style>` block — no CSS file changes strictly needed
+- May need to ensure `#canvas` stays behind React menu (z-index management)
 
 ## Implementation plan (ordered tasks)
-1. Edit `client/index.html`: delete `<div id="loading-screen">...</div>` block (lines 10-37).
-2. Edit `client/index.html`: change `<div id="menu" class="panel hidden">` → `<div id="menu" class="panel">`.
-3. Edit `client/js/game.js`: delete `Startup` class (constructor + all prototype methods).
-4. Edit `client/js/game.js`: remove `var startup = null;` declaration.
-5. Edit `client/js/game.js`: in `connect()`, replace `startup = new Startup(...) + startup.start()` with direct `showScreen('menu'); loop();`.
-6. Edit `client/js/game.js`: update `connect()` catch block to remove `startup.hide()` reference.
-7. Edit `client/js/game.js`: remove `window.__forceHideLoading__` assignment.
-8. Run `node --check client/js/game.js` to verify syntax.
-9. Commit and push.
+1. Add React/ReactDOM/@babel/standalone CDN scripts to `client/index.html`
+2. Replace `<div id="menu">...</div>` with `<div id="react-menu"></div>` mount point in `client/index.html`
+3. Add `<script type="text/babel">` with `FootballTopsMenu` component + `ReactDOM.render` call in `client/index.html`
+4. Update `connect()` in `client/js/game.js` to mount React menu with callbacks:
+   - `onPlayBots` → `startLocal`
+   - `onOnline` → `startOnline`
+   - `onSettings` → settings handler
+5. Remove old menu button event listeners (`btnCreate`, `btnJoin`, `btnStart`, `btnLeave`, `btnLocal`, `goBack`)
+6. Run `node --check client/js/game.js` to verify syntax
+7. Commit and push
+
+## Files NOT to touch
+- `client/js/game.js` gameplay code: `PCControls`, `MobileControls`, `Weather`, `Pitch`, `Ball`, `Player`, `World`, `LocalMatch`, `Netcode`, `SocketClient`, `MSG`, `HUD`, `renderLobby`, `sendInputLoop`, `loop`, `initWorld`, `requestFullscreen`
+- `client/js/game.js` view functions: `showScreen`, `startLocal`, `startOnline`
+- `client/css/style.css` (React component carries its own inline styles)
+- All Three.js, Socket.IO, gameplay, AI, multiplayer, stadium, controls, routing code
 
 ## Validation steps
-1. `node --check client/js/game.js` passes.
-2. Open `http://localhost:3000` (or `node server/index.js`) — main menu appears immediately, no loading screen.
-3. Refresh — main menu appears immediately again.
-4. Browser console: no startup errors referencing `startup` or `loading-screen`.
+1. `node --check client/js/game.js` passes
+2. Open `http://localhost:3000` — React main menu appears immediately (FOOTBALL TOPS branding, hero section, mode cards)
+3. Click "PLAY AGAINST BOTS" → `startLocal()` runs → `showScreen('game')` → Three.js game opens with articulated players
+4. Click "ONLINE" → `startOnline()` runs → online match flow
+5. Click "SETTINGS" → settings handler invoked
+6. Refresh — React menu appears again immediately
+7. Browser console: no React/JSX errors
 
 ## Risks
-- `setMsg` writes to `#msg` element inside the menu — menu must be visible for errors to show (it will be, since menu is no longer hidden).
-- `showScreen('menu')` already handles removing `hidden` from menu — this is the existing, tested path.
-- `loop()` starts the render loop — canvas will render even on menu screen (background pitch), which is existing behavior when menu is shown.
+- `@babel/standalone` is ~200KB+ and compiles JSX on the client — slower initial load, but works without build system
+- `showScreen('menu')` removes `hidden` from `#react-menu` — React content will be visible since it's mounted inside
+- When `showScreen('game')` is called, `#react-menu` gets `hidden` class — React app is hidden but still mounted (fine)
+- The React component's inline `<style>` block is scoped to `.ft-app` — no conflict with existing CSS
 
-## Open questions
-None. The user explicitly requested removing only the loading screen with no other changes.
+## Open questions (need user decision)
+**Q1: React infrastructure approach.** Use CDN + @babel/standalone to run the exact React JSX component (recommended, faithful to "use this component"), OR rewrite using React.createElement without Babel (smaller, faster, but not the component as provided)?
+
+**Recommended:** CDN + @babel/standalone — runs the component exactly as provided.
