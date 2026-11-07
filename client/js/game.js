@@ -961,46 +961,45 @@
     this.statusEl = document.getElementById('loadingStatus');
     this.progressEl = document.getElementById('loadingBarFill');
     this.pctEl = document.getElementById('loadingPct');
-    this.errorEl = document.getElementById('loadingError');
-    this.errorMsgEl = document.getElementById('loadingErrorMsg');
-    this.retryBtn = document.getElementById('loadingRetryBtn');
     this.onComplete = onComplete;
-    this._cancelled = false;
-    this._state = 'loading'; // loading | ready | error
-    this._timer = null;
-    this._forceTimer = null;
+    this._interval = null;
+    this._timeout = null;
+    this._index = 0;
+    this._steps = [
+      { progress: 10, status: 'Initializing Football Tops...' },
+      { progress: 25, status: 'Starting game engine...' },
+      { progress: 40, status: 'Loading game systems...' },
+      { progress: 55, status: 'Preparing players...' },
+      { progress: 70, status: 'Preparing football...' },
+      { progress: 85, status: 'Preparing stadium...' },
+      { progress: 100, status: 'Ready!' }
+    ];
+    this._started = false;
 
     var self = this;
-    this.retryBtn.addEventListener('click', function() {
-      self.retry();
-    });
-
     this.show();
+    this.start();
   };
 
   Startup.prototype.show = function() {
     if (this.el) {
-      this.el.classList.remove('hidden');
-      this.el.classList.remove('loading-screen--fade-out');
       this.el.style.setProperty('display', 'flex', 'important');
+      this.el.classList.remove('hidden');
     }
-    this._cancelled = false;
-    this._state = 'loading';
-    if (this.errorEl) this.errorEl.style.display = 'none';
-    this.setStatus('Initializing Football Tops...', 0);
+    this.setStatus(this._steps[0].status, this._steps[0].progress);
   };
 
   Startup.prototype.hide = function() {
     if (this.el) {
-      this.el.classList.add('hidden');
       this.el.style.setProperty('display', 'none', 'important');
+      this.el.classList.add('hidden');
     }
     this._clearTimers();
   };
 
   Startup.prototype._clearTimers = function() {
-    if (this._timer) { clearTimeout(this._timer); this._timer = null; }
-    if (this._forceTimer) { clearTimeout(this._forceTimer); this._forceTimer = null; }
+    if (this._interval) { clearInterval(this._interval); this._interval = null; }
+    if (this._timeout) { clearTimeout(this._timeout); this._timeout = null; }
   };
 
   Startup.prototype.setStatus = function(text, pct) {
@@ -1012,82 +1011,23 @@
   };
 
   Startup.prototype.start = function() {
+    if (this._started) return;
+    this._started = true;
     var self = this;
-    var steps = [
-      { progress: 15, status: 'Starting game engine...' },
-      { progress: 30, status: 'Loading game systems...' },
-      { progress: 45, status: 'Preparing players...' },
-      { progress: 60, status: 'Preparing football...' },
-      { progress: 75, status: 'Preparing stadium...' },
-      { progress: 90, status: 'Finalizing game...' },
-      { progress: 100, status: 'Ready!' }
-    ];
 
-    var run = function(index) {
-      if (self._cancelled || self._state !== 'loading') return;
-      if (index >= steps.length) {
-        self._timer = setTimeout(function() {
-          if (self._cancelled || self._state !== 'loading') return;
-          self.setFadeOut();
-        }, 350);
+    this._interval = window.setInterval(function() {
+      if (self._index >= self._steps.length) {
+        window.clearInterval(self._interval);
+        self._interval = null;
+        window.setTimeout(function() {
+          if (self.onComplete) self.onComplete();
+        }, 500);
         return;
       }
-      var step = steps[index];
+      var step = self._steps[self._index];
       self.setStatus(step.status, step.progress);
-      self._timer = setTimeout(function() {
-        run(index + 1);
-      }, 250);
-    };
-
-    run(0);
-
-    // Safety net: never get stuck
-    this._forceTimer = setTimeout(function() {
-      if (self._state === 'loading') {
-        console.warn('Startup timeout: forcing transition to main menu');
-        self._state = 'ready';
-        self.complete();
-      }
-    }, 5000);
-  };
-
-  Startup.prototype.setFadeOut = function() {
-    if (this._cancelled || this._state !== 'loading') return;
-    if (this.el) {
-      this.el.classList.add('loading-screen--fade-out');
-    }
-    var self = this;
-    this._timer = setTimeout(function() {
-      if (self._cancelled) return;
-      self._state = 'ready';
-      self.hide();
-      if (self.onComplete) self.onComplete();
-    }, 500);
-  };
-
-  Startup.prototype.complete = function() {
-    this._state = 'ready';
-    this.hide();
-    if (this.onComplete) this.onComplete();
-  };
-
-  Startup.prototype.error = function(msg) {
-    this._state = 'error';
-    this._clearTimers();
-    if (this.el) {
-      this.el.classList.remove('loading-screen--fade-out');
-    }
-    if (this.errorEl) this.errorEl.style.display = 'flex';
-    if (this.errorMsgEl) this.errorMsgEl.textContent = msg || 'Initialization failed.';
-    this.setStatus('Error', 0);
-  };
-
-  Startup.prototype.retry = function() {
-    this._state = 'loading';
-    this._clearTimers();
-    if (this.errorEl) this.errorEl.style.display = 'none';
-    this.show();
-    this.start();
+      self._index++;
+    }, 400);
   };
 
   // ---------- Main ----------
@@ -1393,10 +1333,9 @@
 
     } catch (e) {
       if (startup) {
-        startup.error('Connect failed: ' + (e && e.message ? e.message : String(e)));
-      } else {
-        setMsg('Connect failed: ' + (e && e.message ? e.message : String(e)));
+        startup.hide();
       }
+      setMsg('Connect failed: ' + (e && e.message ? e.message : String(e)));
       showScreen('menu');
       loop();
     }
